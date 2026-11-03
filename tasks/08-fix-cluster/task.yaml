@@ -1,0 +1,4 @@
+id: 08-fix-cluster
+title: Fix CoreDNS
+domain: troubleshooting
+weight: 15

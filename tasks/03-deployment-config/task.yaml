@@ -1,0 +1,4 @@
+id: 03-deployment-config
+title: Deployment with ConfigMap and Secret
+domain: workloads
+weight: 15

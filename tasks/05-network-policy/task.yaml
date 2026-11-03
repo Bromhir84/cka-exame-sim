@@ -1,0 +1,4 @@
+id: 05-network-policy
+title: NetworkPolicy isolation
+domain: networking
+weight: 10

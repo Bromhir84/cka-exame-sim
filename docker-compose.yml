@@ -1,0 +1,27 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./tasks:/app/tasks:ro
+      - session-data:/var/lib/cka-sessions
+    environment:
+      TASKS_DIR: /app/tasks
+      SESSIONS_DIR: /var/lib/cka-sessions
+      EXAM_DURATION_MINUTES: "120"
+      CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    privileged: true
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  session-data:

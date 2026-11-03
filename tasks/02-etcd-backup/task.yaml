@@ -1,0 +1,4 @@
+id: 02-etcd-backup
+title: Backup etcd snapshot
+domain: architecture
+weight: 15

@@ -1,0 +1,4 @@
+id: 06-persistent-volume
+title: PersistentVolumeClaim and Pod mount
+domain: storage
+weight: 10

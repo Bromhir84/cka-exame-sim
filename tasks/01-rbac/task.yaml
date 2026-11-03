@@ -1,0 +1,4 @@
+id: 01-rbac
+title: Create RBAC for a ServiceAccount
+domain: architecture
+weight: 10

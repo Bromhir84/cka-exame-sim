@@ -1,0 +1,9 @@
+tasks:
+  - 01-rbac
+  - 02-etcd-backup
+  - 03-deployment-config
+  - 04-service-ingress
+  - 05-network-policy
+  - 06-persistent-volume
+  - 07-fix-workload
+  - 08-fix-cluster
