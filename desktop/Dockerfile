@@ -33,6 +33,7 @@ ARG KUBECTL_VERSION=v1.31.4
 RUN curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl \
+    && mkdir -p /etc/bash_completion.d \
     && kubectl completion bash > /etc/bash_completion.d/kubectl
 
 RUN useradd -m -s /bin/bash candidate \
