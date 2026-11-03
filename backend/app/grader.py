@@ -13,7 +13,7 @@ from .tasks_loader import DOMAIN_LABELS, Task
 
 
 async def _run_script(
-    script: Path, env: dict[str, str], cwd: Path, timeout: int = 120
+    script: Path, env: dict[str, str], cwd: Path, timeout: int = 180
 ) -> tuple[int, str]:
     if not script.exists():
         return 1, f"missing script: {script}"
@@ -52,7 +52,10 @@ async def run_setup(task: Task, kubeconfig: Path, cluster_name: str) -> None:
         "CLUSTER_NAME": cluster_name,
         "TASK_DIR": str(task.dir),
     }
-    code, out = await _run_script(task.dir / "setup.sh", env, task.dir)
+    # Setups often wait up to 120s on rollout; keep headroom for image pulls.
+    code, out = await _run_script(
+        task.dir / "setup.sh", env, task.dir, timeout=300
+    )
     if code != 0:
         raise RuntimeError(f"setup failed for {task.id}:\n{out}")
 

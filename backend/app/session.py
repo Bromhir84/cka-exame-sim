@@ -24,6 +24,9 @@ class SessionStatus(str, Enum):
     ERROR = "error"
 
 
+PROVISION_STEPS = 7
+
+
 @dataclass
 class ExamSession:
     id: str
@@ -38,10 +41,20 @@ class ExamSession:
     tasks: list[Task] = field(default_factory=list)
     domain: str | None = None  # None = full multi-domain exam
     desktop_url: str | None = None
+    progress_step: int = 0
+    progress_total: int = PROVISION_STEPS
+    progress_label: str = "Queued…"
 
 
 _sessions: dict[str, ExamSession] = {}
 _lock = asyncio.Lock()
+
+
+def _set_progress(session: ExamSession, step: int, label: str) -> None:
+    """step is 1..PROVISION_STEPS while working; percent reflects completed prior steps."""
+    session.progress_step = step
+    session.progress_total = PROVISION_STEPS
+    session.progress_label = label
 
 
 def get_session(session_id: str) -> ExamSession | None:
@@ -246,6 +259,7 @@ async def _provision(session: ExamSession) -> None:
         kind_cfg = session.workdir / "kind.yaml"
         _kind_config(kind_cfg)
 
+        _set_progress(session, 1, "Creating kind cluster…")
         code, out = await _run(
             [
                 "kind",
@@ -265,17 +279,26 @@ async def _provision(session: ExamSession) -> None:
         if code != 0:
             raise RuntimeError(f"kind create failed:\n{out}")
 
+        _set_progress(session, 2, "Connecting to cluster API…")
         await _connect_to_kind_network()
         await _export_internal_kubeconfig(session.cluster_name, session.kubeconfig)
         await _wait_api(session.kubeconfig, timeout=180)
+
+        _set_progress(session, 3, "Installing Calico networking…")
         await _install_calico(session.kubeconfig)
+
+        _set_progress(session, 4, "Waiting for nodes to become Ready…")
         await _wait_nodes_ready(session.kubeconfig, timeout=300)
+
+        _set_progress(session, 5, "Installing ingress controller…")
         await _install_ingress(session.kubeconfig)
 
+        _set_progress(session, 6, "Preparing exam tasks…")
         for task in session.tasks:
             await run_setup(task, session.kubeconfig, session.cluster_name)
 
         # Optional noVNC desktop (best-effort; exam works without it)
+        _set_progress(session, 7, "Starting remote desktop…")
         try:
             session.desktop_url = await start_desktop(
                 session.id, session.kubeconfig, session.cluster_name
@@ -283,6 +306,7 @@ async def _provision(session: ExamSession) -> None:
         except Exception:  # noqa: BLE001
             session.desktop_url = None
 
+        _set_progress(session, PROVISION_STEPS, "Ready")
         session.ends_at = datetime.now(timezone.utc) + timedelta(
             minutes=EXAM_DURATION_MINUTES
         )
@@ -290,6 +314,7 @@ async def _provision(session: ExamSession) -> None:
     except Exception as exc:  # noqa: BLE001
         session.status = SessionStatus.ERROR
         session.error = str(exc)
+        session.progress_label = "Provisioning failed"
         await stop_desktop(session.id)
         await _destroy_cluster(session.cluster_name)
 
@@ -370,6 +395,14 @@ def session_public(session: ExamSession) -> dict:
     remaining = None
     if session.ends_at:
         remaining = max(0, int((session.ends_at - now).total_seconds()))
+    total = max(1, session.progress_total)
+    if session.status == SessionStatus.READY:
+        percent = 100
+    elif session.status == SessionStatus.PROVISIONING:
+        # Credit completed prior steps; current step is in-flight
+        percent = int(round(100 * max(0, session.progress_step - 1) / total))
+    else:
+        percent = int(round(100 * session.progress_step / total))
     return {
         "session_id": session.id,
         "status": session.status.value,
@@ -382,4 +415,10 @@ def session_public(session: ExamSession) -> dict:
         "task_ids": [t.id for t in session.tasks],
         "domain": session.domain,
         "desktop_url": session.desktop_url,
+        "progress": {
+            "step": session.progress_step,
+            "total": session.progress_total,
+            "label": session.progress_label,
+            "percent": percent,
+        },
     }

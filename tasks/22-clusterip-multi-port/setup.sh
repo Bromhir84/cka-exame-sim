@@ -25,4 +25,4 @@ spec:
             - containerPort: 80
             - containerPort: 8080
 EOF
-kubectl -n net-multiport rollout status deploy/dual --timeout=120s
+kubectl -n net-multiport rollout status deploy/dual --timeout=180s

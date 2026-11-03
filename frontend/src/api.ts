@@ -20,6 +20,13 @@ export type BankSummary = {
   }>;
 };
 
+export type SessionProgress = {
+  step: number;
+  total: number;
+  label: string;
+  percent: number;
+};
+
 export type Session = {
   session_id: string;
   status: "provisioning" | "ready" | "grading" | "done" | "error";
@@ -32,6 +39,7 @@ export type Session = {
   task_ids?: string[];
   domain?: string | null;
   desktop_url?: string | null;
+  progress?: SessionProgress | null;
 };
 
 export type CheckResult = {

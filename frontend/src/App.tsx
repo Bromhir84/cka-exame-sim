@@ -393,10 +393,41 @@ export default function App() {
             <div className="provisioning">
               <div className="spinner" />
               <p>
-                Provisioning kind cluster, Calico, and ingress…
+                Setting up your exam environment…
                 <br />
-                <small>This often takes 2–5 minutes.</small>
+                <small>
+                  First run can take several minutes while images are pulled;
+                  later starts are usually faster.
+                </small>
               </p>
+              <div
+                className="progress-block"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={session.progress?.percent ?? 0}
+                aria-label={session.progress?.label || "Provisioning"}
+              >
+                <div className="progress-meta">
+                  <span>
+                    {session.progress?.label || "Starting…"}
+                  </span>
+                  <span>
+                    {session.progress
+                      ? `${session.progress.step}/${session.progress.total}`
+                      : ""}{" "}
+                    · {session.progress?.percent ?? 0}%
+                  </span>
+                </div>
+                <div className="progress-track">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.min(100, session.progress?.percent ?? 0)}%`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
           {ready && (

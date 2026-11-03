@@ -17,10 +17,28 @@ docker info 1>$null 2>$null
 if ($LASTEXITCODE -ne 0) { throw "Docker is installed but not running. Start Docker Desktop and retry." }
 
 if (Test-Path (Join-Path $Target ".git")) {
-  Write-Host "==> Updating existing clone at $Target"
+  Write-Host "==> Checking for updates at $Target"
   Push-Location $Target
-  git pull --ff-only
-  if ($LASTEXITCODE -ne 0) { git pull }
+  $branch = (git rev-parse --abbrev-ref HEAD).Trim()
+  if (-not $branch) { $branch = "main" }
+  git fetch origin $branch 2>$null
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "    Could not reach origin — continuing with local copy." -ForegroundColor Yellow
+  } else {
+    $local = (git rev-parse HEAD).Trim()
+    $remote = (git rev-parse "origin/$branch").Trim()
+    if ($local -ne $remote) {
+      Write-Host "    Update available — pulling origin/$branch..."
+      git pull --ff-only origin $branch
+      if ($LASTEXITCODE -ne 0) {
+        Write-Host "    [WARN] git pull failed; continuing with local copy." -ForegroundColor Yellow
+      } else {
+        Write-Host "    Updated successfully." -ForegroundColor Green
+      }
+    } else {
+      Write-Host "    Already up to date."
+    }
+  }
   Pop-Location
 } else {
   Write-Host "==> Cloning into $Target"
@@ -39,6 +57,6 @@ Write-Host ""
 Write-Host "Ready." -ForegroundColor Green
 Write-Host "  UI:  http://localhost:5173"
 Write-Host "  API: http://localhost:8000"
-Write-Host "First Start Exam often takes 2-5 minutes (kind + optional desktop)."
+Write-Host "First Start Exam can take several minutes (kind + networking + optional desktop)."
 Write-Host "Stop with:  docker compose down"
 Start-Process "http://localhost:5173"

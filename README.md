@@ -55,16 +55,19 @@ git clone https://github.com/Bromhir84/cka-exame-sim.git; Set-Location cka-exame
 install.bat
 ```
 
+On start, `install.bat` / the one-line installers `git fetch` and pull updates from GitHub when available (skipped quietly if offline).
+
 **Any OS:**
 
 ```bash
 docker compose up --build -d
 ```
 
+
 - UI: http://localhost:5173
 - API: http://localhost:8000
 
-Click **Start Exam**, wait for the cluster to become ready (often **2–5 minutes** on first run while kind pulls node images and installs Calico + ingress), then work in the terminal. Click **End Exam** (or wait for the timer) for your score.
+Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, ingress, optional desktop). The first run can take several minutes while images are pulled; later starts are usually faster. Then work in the terminal (or Desktop tab). Click **End Exam** (or wait for the timer) for your score.
 
 The exam workspace includes:
 

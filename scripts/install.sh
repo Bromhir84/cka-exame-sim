@@ -23,8 +23,24 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 if [ -d "$TARGET/.git" ]; then
-  echo "==> Updating existing clone at $TARGET"
-  git -C "$TARGET" pull --ff-only || git -C "$TARGET" pull
+  echo "==> Checking for updates at $TARGET"
+  branch="$(git -C "$TARGET" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
+  if git -C "$TARGET" fetch origin "$branch" >/dev/null 2>&1; then
+    local_sha="$(git -C "$TARGET" rev-parse HEAD)"
+    remote_sha="$(git -C "$TARGET" rev-parse "origin/$branch")"
+    if [ "$local_sha" != "$remote_sha" ]; then
+      echo "    Update available — pulling origin/$branch..."
+      if git -C "$TARGET" pull --ff-only origin "$branch"; then
+        echo "    Updated successfully."
+      else
+        echo "    [WARN] git pull failed; continuing with local copy."
+      fi
+    else
+      echo "    Already up to date."
+    fi
+  else
+    echo "    Could not reach origin — continuing with local copy."
+  fi
 else
   echo "==> Cloning into $TARGET"
   git clone "$REPO_URL" "$TARGET"
@@ -41,7 +57,7 @@ echo "Ready."
 echo "  UI:  http://localhost:5173"
 echo "  API: http://localhost:8000"
 echo
-echo "First Start Exam often takes 2–5 minutes (kind + optional desktop)."
+echo "First Start Exam can take several minutes (kind + networking + optional desktop)."
 echo "Stop with:  docker compose down"
 echo
 if command -v open >/dev/null 2>&1; then
