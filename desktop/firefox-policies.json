@@ -8,7 +8,7 @@
     "DisablePocket": true,
     "NoDefaultBookmarks": true,
     "Homepage": {
-      "URL": "https://docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed",
+      "URL": "https://kubernetes.io/docs/home/",
       "StartPage": "homepage",
       "Locked": false
     },
@@ -24,9 +24,19 @@
         "Placement": "toolbar"
       },
       {
-        "Title": "Allowed exam resources",
-        "URL": "https://docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed",
+        "Title": "Helm Docs",
+        "URL": "https://helm.sh/docs/",
         "Placement": "toolbar"
+      },
+      {
+        "Title": "Gateway API",
+        "URL": "https://gateway-api.sigs.k8s.io/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "LF: resources allowed",
+        "URL": "https://docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed",
+        "Placement": "menu"
       }
     ],
     "WebsiteFilter": {
@@ -34,12 +44,16 @@
       "Exceptions": [
         "https://kubernetes.io/*",
         "https://*.kubernetes.io/*",
-        "https://github.com/kubernetes/*",
-        "https://github.com/kubernetes-sigs/*",
-        "https://raw.githubusercontent.com/kubernetes/*",
-        "https://raw.githubusercontent.com/kubernetes-sigs/*",
-        "https://docs.linuxfoundation.org/*",
-        "https://*.linuxfoundation.org/*"
+        "https://helm.sh/*",
+        "https://*.helm.sh/*",
+        "https://gateway-api.sigs.k8s.io/*",
+        "https://k8s.io/*",
+        "https://*.k8s.io/*",
+        "https://code.jquery.com/*",
+        "https://cdnjs.cloudflare.com/*",
+        "https://fonts.googleapis.com/*",
+        "https://fonts.gstatic.com/*",
+        "https://docs.linuxfoundation.org/*"
       ]
     }
   }

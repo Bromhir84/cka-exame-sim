@@ -74,7 +74,7 @@ Click **Start Exam**, wait for the environment to become ready (kind cluster, Ca
 The exam workspace includes:
 
 - **Terminal** — interactive bash with `kubectl` (and `k` alias) plus **Tab completion**
-- **Docs** — allowlisted browser for exam-style resources only (`kubernetes.io` docs/blog and `github.com/kubernetes*`)
+- **Docs** — allowlisted browser matching the real CKA list (`kubernetes.io/docs` + translations, `kubernetes.io/blog`, `helm.sh/docs`, `gateway-api.sigs.k8s.io`)
 - **Desktop** — optional noVNC remote desktop (XFCE + allowlisted Firefox) for exam-style realism
 
 Grading uses multi-step checks with partial credit; after you end the exam, solutions (`answers.md`) appear in the score report.

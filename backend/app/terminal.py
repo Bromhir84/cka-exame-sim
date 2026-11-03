@@ -41,7 +41,7 @@ def _write_bashrc(path, cluster_name: str) -> None:
                 "fi",
                 "",
                 "echo 'CKA practice shell — kubectl + completion ready (Tab). Alias: k=kubectl'",
-                "echo 'Docs browser: use the Docs tab (allowlisted kubernetes.io / GitHub only).'",
+                "echo 'Docs browser: kubernetes.io/docs, kubernetes.io/blog, helm.sh/docs, gateway-api.sigs.k8s.io (CKA allowlist).'",
                 "",
             ]
         )
