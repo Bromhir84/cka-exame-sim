@@ -130,7 +130,8 @@ async def grade_task(
     earned = 0
     outputs = []
     for meta, points in zip(checks_meta, scaled, strict=True):
-        code, out = await _run_script(meta["script"], env, task.dir)
+        # Keep grade checks short — long kubectl waits blow past reverse proxies.
+        code, out = await _run_script(meta["script"], env, task.dir, timeout=45)
         passed = code == 0
         got = points if passed else 0
         earned += got
@@ -161,19 +162,44 @@ async def grade_task(
 
 
 async def grade_tasks(
-    tasks: list[Task], kubeconfig: Path, cluster_name: str
+    tasks: list[Task],
+    kubeconfig: Path,
+    cluster_name: str,
+    on_progress=None,
 ) -> dict:
-    results = []
+    """Grade all tasks. Optional on_progress(done: int, total: int, title: str)."""
     earned = 0
     domain_earned: dict[str, int] = defaultdict(int)
     domain_possible: dict[str, int] = defaultdict(int)
-
     for task in tasks:
         domain_possible[task.domain] += task.weight
-        result = await grade_task(task, kubeconfig, cluster_name)
+
+    total = len(tasks)
+    done = 0
+    lock = asyncio.Lock()
+    sem = asyncio.Semaphore(4)
+
+    async def _one(task: Task) -> dict:
+        nonlocal done
+        async with sem:
+            result = await grade_task(task, kubeconfig, cluster_name)
+        async with lock:
+            done += 1
+            if on_progress is not None:
+                on_progress(done, total, task.title)
+        return result
+
+    if on_progress is not None:
+        on_progress(0, total, "Starting…")
+
+    results = list(await asyncio.gather(*[_one(t) for t in tasks]))
+    # Preserve exam order
+    by_id = {r["id"]: r for r in results}
+    ordered = [by_id[t.id] for t in tasks]
+
+    for result in ordered:
         earned += result["earned"]
-        domain_earned[task.domain] += result["earned"]
-        results.append(result)
+        domain_earned[result["domain"]] += result["earned"]
 
     domains = []
     for key, label in DOMAIN_LABELS.items():
@@ -193,6 +219,6 @@ async def grade_tasks(
         "score": earned,
         "pass": earned >= PASS_THRESHOLD,
         "pass_threshold": PASS_THRESHOLD,
-        "results": results,
+        "results": ordered,
         "domains": domains,
     }

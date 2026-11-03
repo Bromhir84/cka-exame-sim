@@ -10,9 +10,9 @@ from .config import CORS_ORIGINS, SESSIONS_DIR
 from .session import (
     create_session,
     destroy_session,
-    end_session,
     get_session,
     session_public,
+    start_end_session,
 )
 from .docs_proxy import router as docs_router
 from .tasks_loader import DOMAIN_LABELS, bank_summary, validate_catalog
@@ -92,14 +92,15 @@ async def get_session_tasks(session_id: str):
 
 @app.post("/api/sessions/{session_id}/end")
 async def finish_session(session_id: str):
+    """Start grading in the background. Poll GET /sessions/{id} until status=done."""
     session = get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="session not found")
     try:
-        score = await end_session(session_id, cleanup=True)
+        session = await start_end_session(session_id, cleanup=True)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return score
+    return session_public(session)
 
 
 @app.delete("/api/sessions/{session_id}")

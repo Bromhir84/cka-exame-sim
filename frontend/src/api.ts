@@ -107,10 +107,38 @@ export async function getSessionTasks(id: string): Promise<Task[]> {
   return data.tasks;
 }
 
-export async function endSession(id: string): Promise<ScoreReport> {
-  return json<ScoreReport>(
+export async function startEndSession(id: string): Promise<Session> {
+  return json<Session>(
     await fetch(`/api/sessions/${id}/end`, { method: "POST" })
   );
+}
+
+/** Start grading and poll until the score is ready (avoids gateway timeouts). */
+export async function endSession(
+  id: string,
+  onUpdate?: (session: Session) => void
+): Promise<ScoreReport> {
+  let session = await startEndSession(id);
+  onUpdate?.(session);
+  if (session.status === "done" && session.score) {
+    return session.score;
+  }
+  const deadline = Date.now() + 10 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 800));
+    session = await getSession(id);
+    onUpdate?.(session);
+    if (session.status === "done" && session.score) {
+      return session.score;
+    }
+    if (session.status === "ready" && session.error) {
+      throw new Error(session.error);
+    }
+    if (session.status === "error") {
+      throw new Error(session.error || "grading failed");
+    }
+  }
+  throw new Error("Grading timed out — refresh and check session status");
 }
 
 export function terminalWsUrl(sessionId: string): string {

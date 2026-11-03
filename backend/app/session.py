@@ -360,34 +360,82 @@ async def _cleanup_after_exam(session_id: str) -> None:
         pass
 
 
-async def end_session(session_id: str, cleanup: bool = True) -> dict:
+async def _grade_session(session_id: str, cleanup: bool) -> None:
+    session = get_session(session_id)
+    if not session:
+        return
+
+    def _on_progress(done: int, total: int, title: str) -> None:
+        s = get_session(session_id)
+        if not s:
+            return
+        s.progress_step = done
+        s.progress_total = max(1, total)
+        if done <= 0:
+            s.progress_label = "Starting grading…"
+        elif done >= total:
+            s.progress_label = f"Finished grading {total} questions"
+        else:
+            s.progress_label = f"Graded {done}/{total} — {title}"
+
+    try:
+        score = await grade_tasks(
+            session.tasks,
+            session.kubeconfig,
+            session.cluster_name,
+            on_progress=_on_progress,
+        )
+        session.score = score
+        session.progress_step = session.progress_total
+        session.progress_label = "Grading complete"
+        session.status = SessionStatus.DONE
+        if cleanup:
+            asyncio.create_task(_cleanup_after_exam(session_id))
+    except Exception as exc:  # noqa: BLE001
+        session.error = str(exc)
+        session.status = SessionStatus.READY
+
+
+async def start_end_session(session_id: str, cleanup: bool = True) -> ExamSession:
+    """Kick off grading asynchronously; clients poll session until status=done."""
     session = get_session(session_id)
     if not session:
         raise KeyError("session not found")
     if session.status == SessionStatus.DONE and session.score:
-        return session.score
+        return session
     if session.status == SessionStatus.PROVISIONING:
         raise RuntimeError("session still provisioning")
     if session.status == SessionStatus.ERROR:
         raise RuntimeError(session.error or "session failed")
     if session.status == SessionStatus.GRADING:
-        raise RuntimeError("session is already grading")
+        return session
 
     session.status = SessionStatus.GRADING
-    try:
-        score = await grade_tasks(session.tasks, session.kubeconfig, session.cluster_name)
-        session.score = score
-        session.status = SessionStatus.DONE
-        return score
-    except Exception:
-        # Leave status as grading/error path — restore READY so user can retry end
-        if session.status == SessionStatus.GRADING:
-            session.status = SessionStatus.READY
-        raise
-    finally:
-        # Always schedule cleanup after a successful grade; on failure only if requested
-        if cleanup and session.status == SessionStatus.DONE:
-            asyncio.create_task(_cleanup_after_exam(session_id))
+    session.error = None
+    session.progress_step = 0
+    session.progress_total = max(1, len(session.tasks))
+    session.progress_label = "Starting grading…"
+    asyncio.create_task(_grade_session(session_id, cleanup))
+    return session
+
+
+async def end_session(session_id: str, cleanup: bool = True) -> dict:
+    """Compatibility helper: start grading and wait until score is ready."""
+    session = await start_end_session(session_id, cleanup=cleanup)
+    if session.status == SessionStatus.DONE and session.score:
+        return session.score
+    # Wait for background grader (used by tests / direct callers)
+    deadline = asyncio.get_event_loop().time() + 600
+    while asyncio.get_event_loop().time() < deadline:
+        session = get_session(session_id)
+        if not session:
+            raise RuntimeError("session disappeared while grading")
+        if session.status == SessionStatus.DONE and session.score:
+            return session.score
+        if session.status == SessionStatus.READY and session.error:
+            raise RuntimeError(session.error)
+        await asyncio.sleep(0.5)
+    raise RuntimeError("grading timed out")
 
 
 async def destroy_session(session_id: str, delete_record: bool = True) -> None:
@@ -409,11 +457,15 @@ def session_public(session: ExamSession) -> dict:
     if session.ends_at:
         remaining = max(0, int((session.ends_at - now).total_seconds()))
     total = max(1, session.progress_total)
-    if session.status == SessionStatus.READY:
+    if session.status == SessionStatus.DONE:
         percent = 100
     elif session.status == SessionStatus.PROVISIONING:
         # Credit completed prior steps; current step is in-flight
         percent = int(round(100 * max(0, session.progress_step - 1) / total))
+    elif session.status == SessionStatus.GRADING:
+        percent = int(round(100 * session.progress_step / total))
+    elif session.status == SessionStatus.READY:
+        percent = 100
     else:
         percent = int(round(100 * session.progress_step / total))
     return {

@@ -218,8 +218,22 @@ export default function App() {
     if (!session || ending) return;
     setEnding(true);
     setError(null);
+    setSession((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: "grading",
+            progress: {
+              step: 0,
+              total: prev.task_ids?.length || tasks.length || 1,
+              label: "Starting grading…",
+              percent: 0,
+            },
+          }
+        : prev
+    );
     try {
-      const report = await endSession(session.session_id);
+      const report = await endSession(session.session_id, setSession);
       setScore(report);
       setSession((prev) =>
         prev ? { ...prev, status: "done", score: report } : prev
@@ -231,10 +245,11 @@ export default function App() {
       const msg = String((e as Error).message || e);
       setError(msg);
       pushToast(msg, "error");
+      setSession((prev) => (prev ? { ...prev, status: "ready" } : prev));
     } finally {
       setEnding(false);
     }
-  }, [session, ending, pushToast]);
+  }, [session, ending, pushToast, tasks.length]);
 
   const ready = session?.status === "ready";
 
@@ -476,7 +491,37 @@ export default function App() {
           {session.status === "grading" && (
             <div className="provisioning">
               <div className="spinner" />
-              <p>Grading your cluster…</p>
+              <p>
+                Grading your cluster…
+                <br />
+                <small>Checking each question against the live environment.</small>
+              </p>
+              <div
+                className="progress-block"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={session.progress?.percent ?? 0}
+                aria-label={session.progress?.label || "Grading"}
+              >
+                <div className="progress-meta">
+                  <span>{session.progress?.label || "Starting grading…"}</span>
+                  <span>
+                    {session.progress
+                      ? `${session.progress.step}/${session.progress.total}`
+                      : ""}{" "}
+                    · {session.progress?.percent ?? 0}%
+                  </span>
+                </div>
+                <div className="progress-track">
+                  <div
+                    className="progress-fill"
+                    style={{
+                      width: `${Math.min(100, session.progress?.percent ?? 0)}%`,
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           )}
         </main>
