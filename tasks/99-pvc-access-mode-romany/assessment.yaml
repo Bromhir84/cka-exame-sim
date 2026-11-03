@@ -1,0 +1,9 @@
+checks:
+  - id: mode
+    description: ReadOnlyMany
+    weight: 50
+    script: checks/mode.sh
+  - id: bound
+    description: Bound
+    weight: 50
+    script: checks/bound.sh

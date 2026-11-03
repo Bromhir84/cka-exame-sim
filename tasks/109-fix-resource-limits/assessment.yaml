@@ -1,0 +1,9 @@
+checks:
+  - id: cpu
+    description: cpu request 100m
+    weight: 50
+    script: checks/cpu.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: path
+    description: liveness /
+    weight: 50
+    script: checks/path.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

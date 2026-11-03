@@ -1,0 +1,9 @@
+checks:
+  - id: secret
+    description: Secret key
+    weight: 40
+    script: checks/secret.sh
+  - id: ready
+    description: Pod Ready
+    weight: 60
+    script: checks/ready.sh

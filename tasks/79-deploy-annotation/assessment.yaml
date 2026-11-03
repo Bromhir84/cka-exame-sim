@@ -1,0 +1,9 @@
+checks:
+  - id: ann
+    description: Annotation value
+    weight: 50
+    script: checks/ann.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: cr
+    description: impersonate users
+    weight: 60
+    script: checks/cr.sh
+  - id: bind
+    description: ClusterRoleBinding
+    weight: 40
+    script: checks/bind.sh

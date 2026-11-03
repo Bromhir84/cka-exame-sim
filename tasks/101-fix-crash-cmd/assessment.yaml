@@ -1,0 +1,9 @@
+checks:
+  - id: cmd
+    description: command sleep
+    weight: 50
+    script: checks/cmd.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

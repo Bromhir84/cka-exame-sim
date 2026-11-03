@@ -1,0 +1,9 @@
+checks:
+  - id: bound
+    description: PVC Bound
+    weight: 70
+    script: checks/bound.sh
+  - id: sc
+    description: storageClassName
+    weight: 30
+    script: checks/sc.sh

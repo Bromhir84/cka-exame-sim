@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: nodeSelector
+    weight: 50
+    script: checks/sel.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

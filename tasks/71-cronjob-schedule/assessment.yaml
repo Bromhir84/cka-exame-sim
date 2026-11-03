@@ -1,0 +1,9 @@
+checks:
+  - id: sched
+    description: Schedule
+    weight: 40
+    script: checks/sched.sh
+  - id: policy
+    description: Concurrency Forbid
+    weight: 60
+    script: checks/policy.sh

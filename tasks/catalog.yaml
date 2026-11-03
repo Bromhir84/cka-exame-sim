@@ -40,7 +40,7 @@ slots:
     weight: 7
 
 bank:
-  # architecture (12)
+  # architecture (24)
   - 01-rbac
   - 02-etcd-backup
   - 09-clusterrole-binding
@@ -53,7 +53,19 @@ bank:
   - 34-resourcequota
   - 35-limitrange
   - 36-serviceaccount-automount
-  # workloads (11)
+  - 57-rbac-configmaps
+  - 58-clusterrole-nodes
+  - 59-role-deployments
+  - 60-rbac-events
+  - 61-quota-compute
+  - 62-limitrange-pod
+  - 63-rbac-pods-logs
+  - 64-clusterrole-pv
+  - 65-priorityclass
+  - 66-quota-object-count
+  - 67-rbac-impersonate
+  - 68-sa-imagepullsecret
+  # workloads (22)
   - 03-deployment-config
   - 15-cronjob
   - 16-scale-deployment
@@ -65,7 +77,18 @@ bank:
   - 40-init-container
   - 41-sidecar-pod
   - 42-pdb
-  # networking (11)
+  - 69-deploy-env-secret
+  - 70-statefulset-basic
+  - 71-cronjob-schedule
+  - 72-deploy-rolling-maxunavail
+  - 73-job-completions
+  - 74-deploy-nodeselector-os
+  - 75-pod-securitycontext-user
+  - 76-deploy-envfrom-cm
+  - 77-replicaset-scale
+  - 78-pod-lifecycle-hooks
+  - 79-deploy-annotation
+  # networking (22)
   - 04-service-ingress
   - 05-network-policy
   - 19-nodeport-service
@@ -77,7 +100,18 @@ bank:
   - 44-deny-all-ingress
   - 45-ingress-two-hosts
   - 46-externalname-service
-  # storage (10)
+  - 80-svc-nodeport-custom
+  - 81-netpol-allow-frontend
+  - 82-ingress-rewrite
+  - 83-svc-session-affinity
+  - 84-netpol-deny-egress
+  - 85-endpoints-manual
+  - 86-ingress-tls-secret
+  - 87-svc-loadbalancer
+  - 88-netpol-namespace-selector
+  - 89-svc-port-name
+  - 90-ingress-multpath
+  # storage (20)
   - 06-persistent-volume
   - 24-pvc-busybox
   - 25-pvc-storageclass
@@ -88,7 +122,17 @@ bank:
   - 50-hostpath-pv
   - 51-storageclass-custom
   - 52-pvc-expand-request
-  # troubleshooting (12)
+  - 91-pvc-filesystem
+  - 92-secret-env-pod
+  - 93-projected-volume
+  - 94-storageclass-immediate
+  - 95-pv-nfs-like-hostpath
+  - 96-pvc-storageclass-manual
+  - 97-emptydir-memory
+  - 98-configmap-envfrom-pod
+  - 99-pvc-access-mode-romany
+  - 100-downwardapi-volume
+  # troubleshooting (24)
   - 07-fix-workload
   - 08-fix-cluster
   - 27-crashloop-fix
@@ -101,3 +145,15 @@ bank:
   - 54-fix-service-port
   - 55-fix-env-config
   - 56-fix-replicas
+  - 101-fix-crash-cmd
+  - 102-fix-wrong-image
+  - 103-fix-svc-selector
+  - 104-fix-readiness
+  - 105-fix-missing-secret
+  - 106-fix-nodeport-target
+  - 107-fix-replicas-zero
+  - 108-fix-taint-toleration
+  - 109-fix-resource-limits
+  - 110-fix-cm-key
+  - 111-fix-deploy-label
+  - 112-fix-liveness-kill

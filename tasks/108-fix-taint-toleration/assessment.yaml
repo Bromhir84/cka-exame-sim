@@ -1,0 +1,9 @@
+checks:
+  - id: tol
+    description: toleration present
+    weight: 50
+    script: checks/tol.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

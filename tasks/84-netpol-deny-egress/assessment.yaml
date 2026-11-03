@@ -1,0 +1,9 @@
+checks:
+  - id: types
+    description: policyTypes Egress
+    weight: 40
+    script: checks/types.sh
+  - id: empty
+    description: No egress rules
+    weight: 60
+    script: checks/empty.sh

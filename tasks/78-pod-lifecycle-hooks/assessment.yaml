@@ -1,0 +1,9 @@
+checks:
+  - id: hook
+    description: postStart present
+    weight: 60
+    script: checks/hook.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

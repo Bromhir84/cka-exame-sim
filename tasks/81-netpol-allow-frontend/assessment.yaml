@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: podSelector backend
+    weight: 40
+    script: checks/sel.sh
+  - id: from
+    description: from frontend port 80
+    weight: 60
+    script: checks/from.sh

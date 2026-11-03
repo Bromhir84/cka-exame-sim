@@ -1,0 +1,9 @@
+checks:
+  - id: role
+    description: Role on events
+    weight: 50
+    script: checks/role.sh
+  - id: bind
+    description: Binding
+    weight: 50
+    script: checks/bind.sh

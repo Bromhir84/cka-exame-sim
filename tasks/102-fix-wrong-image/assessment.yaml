@@ -1,0 +1,9 @@
+checks:
+  - id: image
+    description: nginx:1.27
+    weight: 50
+    script: checks/image.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

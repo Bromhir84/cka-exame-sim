@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: selector app=web
+    weight: 60
+    script: checks/sel.sh
+  - id: ep
+    description: Has endpoints
+    weight: 40
+    script: checks/ep.sh

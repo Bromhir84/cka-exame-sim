@@ -1,0 +1,9 @@
+checks:
+  - id: svc
+    description: Service named targetPort
+    weight: 60
+    script: checks/svc.sh
+  - id: pod
+    description: containerPort name
+    weight: 40
+    script: checks/pod.sh

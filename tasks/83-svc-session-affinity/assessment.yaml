@@ -1,0 +1,9 @@
+checks:
+  - id: aff
+    description: sessionAffinity ClientIP
+    weight: 70
+    script: checks/aff.sh
+  - id: sel
+    description: Selector app=web
+    weight: 30
+    script: checks/sel.sh

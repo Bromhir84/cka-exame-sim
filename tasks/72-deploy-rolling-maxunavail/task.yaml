@@ -1,0 +1,3 @@
+id: 72-deploy-rolling-maxunavail
+title: RollingUpdate maxUnavailable
+domain: workloads

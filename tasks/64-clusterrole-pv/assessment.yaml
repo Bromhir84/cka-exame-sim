@@ -1,0 +1,9 @@
+checks:
+  - id: cr
+    description: ClusterRole
+    weight: 50
+    script: checks/cr.sh
+  - id: bind
+    description: ClusterRoleBinding
+    weight: 50
+    script: checks/bind.sh

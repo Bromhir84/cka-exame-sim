@@ -1,0 +1,9 @@
+checks:
+  - id: tp
+    description: targetPort 80
+    weight: 70
+    script: checks/tp.sh
+  - id: exists
+    description: Service still present
+    weight: 30
+    script: checks/exists.sh

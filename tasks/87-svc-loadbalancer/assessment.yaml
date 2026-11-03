@@ -1,0 +1,9 @@
+checks:
+  - id: type
+    description: type LoadBalancer
+    weight: 70
+    script: checks/type.sh
+  - id: port
+    description: port 80
+    weight: 30
+    script: checks/port.sh

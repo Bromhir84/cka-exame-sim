@@ -1,0 +1,9 @@
+checks:
+  - id: uid
+    description: runAsUser/Group
+    weight: 60
+    script: checks/uid.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

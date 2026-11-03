@@ -1,0 +1,9 @@
+checks:
+  - id: pods
+    description: pods hard=10
+    weight: 40
+    script: checks/pods.sh
+  - id: svc
+    description: services hard=5
+    weight: 60
+    script: checks/svc.sh

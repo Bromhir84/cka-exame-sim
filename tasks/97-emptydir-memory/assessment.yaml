@@ -1,0 +1,9 @@
+checks:
+  - id: med
+    description: medium Memory
+    weight: 60
+    script: checks/med.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

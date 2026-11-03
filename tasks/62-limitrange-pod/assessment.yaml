@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: LimitRange exists
+    weight: 30
+    script: checks/exists.sh
+  - id: defaults
+    description: Default request/limit
+    weight: 70
+    script: checks/defaults.sh

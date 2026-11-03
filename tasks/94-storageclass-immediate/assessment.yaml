@@ -1,0 +1,9 @@
+checks:
+  - id: mode
+    description: volumeBindingMode
+    weight: 50
+    script: checks/mode.sh
+  - id: reclaim
+    description: reclaimPolicy Delete
+    weight: 50
+    script: checks/reclaim.sh

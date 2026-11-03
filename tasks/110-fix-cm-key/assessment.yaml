@@ -1,0 +1,9 @@
+checks:
+  - id: key
+    description: app.conf present
+    weight: 40
+    script: checks/key.sh
+  - id: ready
+    description: Ready
+    weight: 60
+    script: checks/ready.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: role
+    description: Role verbs/resources
+    weight: 40
+    script: checks/role.sh
+  - id: bind
+    description: RoleBinding to SA
+    weight: 60
+    script: checks/bind.sh

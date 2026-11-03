@@ -1,0 +1,9 @@
+checks:
+  - id: cap
+    description: 5Gi capacity
+    weight: 40
+    script: checks/cap.sh
+  - id: sc
+    description: SC and Retain
+    weight: 60
+    script: checks/sc.sh

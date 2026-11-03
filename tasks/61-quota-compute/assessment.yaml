@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: Quota exists
+    weight: 30
+    script: checks/exists.sh
+  - id: hard
+    description: Hard limits
+    weight: 70
+    script: checks/hard.sh

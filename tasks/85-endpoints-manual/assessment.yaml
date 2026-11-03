@@ -1,0 +1,9 @@
+checks:
+  - id: svc
+    description: No selector
+    weight: 40
+    script: checks/svc.sh
+  - id: ep
+    description: Endpoints IP
+    weight: 60
+    script: checks/ep.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: cm
+    description: ConfigMap keys
+    weight: 30
+    script: checks/cm.sh
+  - id: env
+    description: envFrom + Ready
+    weight: 70
+    script: checks/env.sh

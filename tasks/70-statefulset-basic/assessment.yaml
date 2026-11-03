@@ -1,0 +1,9 @@
+checks:
+  - id: svc
+    description: Headless Service
+    weight: 30
+    script: checks/svc.sh
+  - id: sts
+    description: StatefulSet Ready
+    weight: 70
+    script: checks/sts.sh

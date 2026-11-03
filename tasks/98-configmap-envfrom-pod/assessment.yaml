@@ -1,0 +1,9 @@
+checks:
+  - id: env
+    description: envFrom configMapRef
+    weight: 60
+    script: checks/env.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

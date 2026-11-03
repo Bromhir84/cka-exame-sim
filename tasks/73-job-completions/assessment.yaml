@@ -1,0 +1,9 @@
+checks:
+  - id: spec
+    description: completions/parallelism
+    weight: 40
+    script: checks/spec.sh
+  - id: done
+    description: Complete
+    weight: 60
+    script: checks/done.sh

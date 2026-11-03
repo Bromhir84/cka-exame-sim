@@ -1,0 +1,9 @@
+checks:
+  - id: role
+    description: pods and pods/log
+    weight: 60
+    script: checks/role.sh
+  - id: bind
+    description: RoleBinding
+    weight: 40
+    script: checks/bind.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: PriorityClass exists
+    weight: 40
+    script: checks/exists.sh
+  - id: value
+    description: Value and globalDefault
+    weight: 60
+    script: checks/value.sh

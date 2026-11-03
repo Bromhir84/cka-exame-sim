@@ -1,0 +1,3 @@
+id: 106-fix-nodeport-target
+title: Fix Service targetPort
+domain: troubleshooting

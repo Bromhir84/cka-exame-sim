@@ -1,0 +1,9 @@
+checks:
+  - id: vol
+    description: downwardAPI path
+    weight: 60
+    script: checks/vol.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

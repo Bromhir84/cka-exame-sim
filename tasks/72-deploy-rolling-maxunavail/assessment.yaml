@@ -1,0 +1,9 @@
+checks:
+  - id: strat
+    description: maxUnavailable/maxSurge
+    weight: 50
+    script: checks/strat.sh
+  - id: ready
+    description: Ready replicas
+    weight: 50
+    script: checks/ready.sh

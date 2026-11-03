@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: Service selector web
+    weight: 50
+    script: checks/sel.sh
+  - id: ep
+    description: Endpoints + Ready
+    weight: 50
+    script: checks/ep.sh

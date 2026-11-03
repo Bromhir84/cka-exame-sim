@@ -1,0 +1,9 @@
+checks:
+  - id: secret
+    description: Secret key
+    weight: 30
+    script: checks/secret.sh
+  - id: env
+    description: Env from secret + Ready
+    weight: 70
+    script: checks/env.sh

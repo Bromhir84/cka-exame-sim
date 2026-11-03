@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: podSelector db
+    weight: 40
+    script: checks/sel.sh
+  - id: ns
+    description: namespaceSelector env=prod
+    weight: 60
+    script: checks/ns.sh

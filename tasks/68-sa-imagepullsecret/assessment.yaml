@@ -1,0 +1,9 @@
+checks:
+  - id: secret
+    description: dockerconfig secret
+    weight: 40
+    script: checks/secret.sh
+  - id: sa
+    description: SA imagePullSecrets
+    weight: 60
+    script: checks/sa.sh
