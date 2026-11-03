@@ -60,6 +60,10 @@ class ExamSession:
     # Graded results keyed by task id (filled at End Exam)
     task_results: dict[str, dict] = field(default_factory=dict)
     switch_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # Background warm-up of the next question's cluster while the candidate works
+    prefetch_task_id: str | None = None
+    prefetch_label: str = ""
+    prefetch_job: asyncio.Task | None = field(default=None, repr=False, compare=False)
 
 
 _sessions: dict[str, ExamSession] = {}
@@ -349,61 +353,88 @@ async def _start_session_desktop(session: ExamSession) -> None:
         session.desktop_url = None
 
 
-async def _provision_task_cluster(session: ExamSession, task: Task) -> None:
-    """Create a dedicated kind cluster and run setup for a single question."""
+async def _warm_task_cluster(
+    session: ExamSession,
+    task: Task,
+    *,
+    on_progress,
+) -> TaskClusterState:
+    """Create kind cluster + networking + task setup. Does not bind desktop/active."""
+    if task.id in session.task_clusters:
+        return session.task_clusters[task.id]
+
     cluster_name = _cluster_name_for(session, task.id)
     kubeconfig = _kubeconfig_for(session, task.id)
     session.workdir.mkdir(parents=True, exist_ok=True)
-    session.cluster_name = cluster_name
-    session.kubeconfig = kubeconfig
-    session.active_task_id = task.id
-
     kind_cfg = session.workdir / "kind.yaml"
     _kind_config(kind_cfg)
 
-    # Remove leftover cluster with this name only (other questions stay intact)
-    await _destroy_cluster(cluster_name)
+    try:
+        await _destroy_cluster(cluster_name)
 
-    _set_progress(session, 1, f"Creating cluster for “{task.title}”…")
-    code, out = await _run(
-        [
-            "kind",
-            "create",
-            "cluster",
-            "--name",
-            cluster_name,
-            "--image",
-            KIND_IMAGE,
-            "--config",
-            str(kind_cfg),
-            "--kubeconfig",
-            str(kubeconfig),
-        ],
-        timeout=300,
-    )
-    if code != 0:
-        raise RuntimeError(f"kind create failed:\n{out}")
+        on_progress(1, f"Creating cluster for “{task.title}”…")
+        code, out = await _run(
+            [
+                "kind",
+                "create",
+                "cluster",
+                "--name",
+                cluster_name,
+                "--image",
+                KIND_IMAGE,
+                "--config",
+                str(kind_cfg),
+                "--kubeconfig",
+                str(kubeconfig),
+            ],
+            timeout=300,
+        )
+        if code != 0:
+            raise RuntimeError(f"kind create failed:\n{out}")
 
-    _set_progress(session, 2, "Connecting to cluster API…")
-    await _connect_to_kind_network()
-    await _export_internal_kubeconfig(cluster_name, kubeconfig)
-    await _wait_api(kubeconfig, timeout=180)
+        on_progress(2, "Connecting to cluster API…")
+        await _connect_to_kind_network()
+        await _export_internal_kubeconfig(cluster_name, kubeconfig)
+        await _wait_api(kubeconfig, timeout=180)
 
-    _set_progress(session, 3, "Installing Calico networking…")
-    await _install_calico(kubeconfig)
+        on_progress(3, "Installing Calico networking…")
+        await _install_calico(kubeconfig)
 
-    _set_progress(session, 4, "Waiting for nodes to become Ready…")
-    await _wait_nodes_ready(kubeconfig, timeout=300)
+        on_progress(4, "Waiting for nodes to become Ready…")
+        await _wait_nodes_ready(kubeconfig, timeout=300)
 
-    _set_progress(session, 5, "Installing ingress controller…")
-    await _install_ingress(kubeconfig)
+        on_progress(5, "Installing ingress controller…")
+        await _install_ingress(kubeconfig)
 
-    _set_progress(session, 6, f"Preparing question “{task.title}”…")
-    await run_setup(task, kubeconfig, cluster_name)
+        on_progress(6, f"Preparing question “{task.title}”…")
+        await run_setup(task, kubeconfig, cluster_name)
 
-    session.task_clusters[task.id] = TaskClusterState(
-        cluster_name=cluster_name, kubeconfig=kubeconfig
-    )
+        state = TaskClusterState(cluster_name=cluster_name, kubeconfig=kubeconfig)
+        session.task_clusters[task.id] = state
+        return state
+    except asyncio.CancelledError:
+        session.task_clusters.pop(task.id, None)
+        await _destroy_cluster(cluster_name)
+        raise
+    except Exception:
+        session.task_clusters.pop(task.id, None)
+        await _destroy_cluster(cluster_name)
+        raise
+
+
+async def _provision_task_cluster(session: ExamSession, task: Task) -> None:
+    """Create (or reuse) a cluster and make it the active desktop target."""
+    await _await_prefetch_if_needed(session, task.id)
+    if task.id in session.task_clusters:
+        await _reconnect_task_cluster(session, task)
+        return
+
+    session.cluster_name = _cluster_name_for(session, task.id)
+    session.kubeconfig = _kubeconfig_for(session, task.id)
+    session.active_task_id = task.id
+
+    await _warm_task_cluster(session, task, on_progress=_set_progress)
+    _bind_active_cluster(session, task.id)
 
     _set_progress(session, 7, "Starting remote desktop…")
     await _start_session_desktop(session)
@@ -430,6 +461,120 @@ async def _reconnect_task_cluster(session: ExamSession, task: Task) -> None:
     session.progress_label = "Ready"
 
 
+def _next_prefetch_task_id(session: ExamSession) -> str | None:
+    """Next unfinished question after the active one that still needs a cluster."""
+    if not session.active_task_id:
+        return None
+    n = len(session.tasks)
+    try:
+        start = _task_index(session, session.active_task_id) + 1
+    except KeyError:
+        start = 0
+    for offset in range(n):
+        task = session.tasks[(start + offset) % n]
+        if task.id == session.active_task_id:
+            continue
+        if task.id in session.task_results:
+            continue
+        if task.id in session.task_clusters:
+            continue
+        return task.id
+    return None
+
+
+async def _cancel_prefetch(session: ExamSession) -> None:
+    job = session.prefetch_job
+    session.prefetch_job = None
+    target = session.prefetch_task_id
+    if job and not job.done():
+        job.cancel()
+        try:
+            await job
+        except asyncio.CancelledError:
+            pass
+        except Exception:  # noqa: BLE001
+            pass
+    session.prefetch_task_id = None
+    session.prefetch_label = ""
+    # Drop a half-built cluster if cancel left it unregistered
+    if target and target not in session.task_clusters:
+        await _destroy_cluster(_cluster_name_for(session, target))
+
+
+async def _await_prefetch_if_needed(session: ExamSession, task_id: str) -> None:
+    """If the target is still warming in the background, wait for it."""
+    if session.prefetch_task_id != task_id:
+        return
+    job = session.prefetch_job
+    if not job:
+        return
+    if job.done():
+        return
+    session.progress_label = "Finishing prefetched cluster setup…"
+    try:
+        await job
+    except asyncio.CancelledError:
+        pass
+    except Exception:  # noqa: BLE001
+        pass
+
+
+async def _prefetch_job(session_id: str, task_id: str) -> None:
+    session = get_session(session_id)
+    if not session:
+        return
+    try:
+        task = _get_task(session, task_id)
+        if task_id in session.task_clusters:
+            session.prefetch_label = f"Next question already warm (“{task.title}”)"
+            return
+
+        def on_progress(_step: int, label: str) -> None:
+            # Keep the candidate's main progress UI on the active question.
+            session.prefetch_label = f"Warming next question: {label}"
+
+        await _warm_task_cluster(session, task, on_progress=on_progress)
+        state = session.task_clusters[task_id]
+        await _set_cluster_paused(state.cluster_name, True)
+        session.prefetch_label = f"Next question ready (“{task.title}”)"
+    except asyncio.CancelledError:
+        session.prefetch_label = ""
+        raise
+    except Exception as exc:  # noqa: BLE001
+        session.prefetch_label = "Next-question prefetch failed (will create on demand)"
+        # Leave a breadcrumb for logs / UI without failing the exam
+        session.error = None
+        _ = str(exc)
+    finally:
+        if session.prefetch_task_id == task_id:
+            session.prefetch_job = None
+
+
+def _kick_prefetch(session: ExamSession) -> None:
+    """Start warming the next unfinished question while status stays ready."""
+    if session.status != SessionStatus.READY:
+        return
+    target = _next_prefetch_task_id(session)
+    if not target:
+        return
+    job = session.prefetch_job
+    if (
+        session.prefetch_task_id == target
+        and job is not None
+        and not job.done()
+    ):
+        return
+
+    # Different target (or stale job): cancel and restart
+    if job is not None and not job.done():
+        job.cancel()
+
+    task = _get_task(session, target)
+    session.prefetch_task_id = target
+    session.prefetch_label = f"Warming next question (“{task.title}”)…"
+    session.prefetch_job = asyncio.create_task(_prefetch_job(session.id, target))
+
+
 async def _provision(session: ExamSession) -> None:
     """Initial exam start: provision cluster for the first question only."""
     try:
@@ -441,6 +586,7 @@ async def _provision(session: ExamSession) -> None:
             minutes=EXAM_DURATION_MINUTES
         )
         session.status = SessionStatus.READY
+        _kick_prefetch(session)
     except Exception as exc:  # noqa: BLE001
         session.status = SessionStatus.ERROR
         session.error = str(exc)
@@ -520,20 +666,26 @@ async def _switch_task(session_id: str, task_id: str) -> None:
                 leaving = session.task_clusters[leaving_id]
                 await _set_cluster_paused(leaving.cluster_name, True)
 
+            if session.prefetch_task_id == task_id:
+                await _await_prefetch_if_needed(session, task_id)
+            elif session.prefetch_task_id:
+                await _cancel_prefetch(session)
+
             task = _get_task(session, task_id)
             if task_id in session.task_clusters:
                 await _reconnect_task_cluster(session, task)
             else:
                 await _provision_task_cluster(session, task)
             session.status = SessionStatus.READY
+            _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
             session.status = SessionStatus.ERROR
             session.error = str(exc)
             session.progress_label = "Question switch failed"
             await stop_desktop(session.id)
             # Keep other question clusters; only drop a half-created target if needed
-            if task_id not in session.task_clusters and session.cluster_name:
-                await _destroy_cluster(session.cluster_name)
+            if task_id not in session.task_clusters:
+                await _destroy_cluster(_cluster_name_for(session, task_id))
 
 
 async def activate_task(session_id: str, task_id: str) -> ExamSession:
@@ -557,14 +709,18 @@ async def activate_task(session_id: str, task_id: str) -> ExamSession:
 
     session.status = SessionStatus.SWITCHING
     session.error = None
-    returning = task_id in session.task_clusters
-    session.progress_step = 1
-    session.progress_total = RECONNECT_STEPS if returning else PROVISION_STEPS
-    session.progress_label = (
-        "Resuming previous question cluster…"
-        if returning
-        else "Provisioning next question cluster…"
+    warming = (
+        task_id in session.task_clusters
+        or session.prefetch_task_id == task_id
     )
+    session.progress_step = 1
+    session.progress_total = RECONNECT_STEPS if warming else PROVISION_STEPS
+    if task_id in session.task_clusters:
+        session.progress_label = "Resuming previous question cluster…"
+    elif session.prefetch_task_id == task_id:
+        session.progress_label = "Finishing prefetched cluster setup…"
+    else:
+        session.progress_label = "Provisioning next question cluster…"
     asyncio.create_task(_switch_task(session_id, task_id))
     return session
 
@@ -623,12 +779,17 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
                 next_id = _next_unfinished_task_id(session, task_id)
                 if next_id:
                     session.progress_label = "Opening next unfinished question…"
+                    if session.prefetch_task_id == next_id:
+                        await _await_prefetch_if_needed(session, next_id)
+                    elif session.prefetch_task_id:
+                        await _cancel_prefetch(session)
                     task = _get_task(session, next_id)
                     if next_id in session.task_clusters:
                         await _reconnect_task_cluster(session, task)
                     else:
                         await _provision_task_cluster(session, task)
                 else:
+                    await _cancel_prefetch(session)
                     session.active_task_id = None
                     session.cluster_name = ""
                     session.progress_label = (
@@ -637,6 +798,8 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
             else:
                 session.progress_label = "Question finished (grade saved)"
             session.status = SessionStatus.READY
+            if session.active_task_id:
+                _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
             session.status = SessionStatus.ERROR
             session.error = str(exc)
@@ -737,6 +900,7 @@ async def start_end_session(session_id: str, cleanup: bool = True) -> ExamSessio
     session.progress_step = 0
     session.progress_total = max(1, len(session.task_clusters) or len(session.tasks))
     session.progress_label = "Starting grading…"
+    await _cancel_prefetch(session)
     asyncio.create_task(_grade_session(session_id, cleanup))
     return session
 
@@ -762,6 +926,7 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
     session = get_session(session_id)
     if not session:
         return
+    await _cancel_prefetch(session)
     await stop_desktop(session_id)
     session.desktop_url = None
     await _destroy_all_clusters(session)
@@ -803,6 +968,13 @@ def session_public(session: ExamSession) -> dict:
         "opened_task_ids": sorted(session.task_clusters.keys()),
         # IDs only — scores stay hidden until End Exam (status=done)
         "finished_task_ids": sorted(session.task_results.keys()),
+        "prefetch": {
+            "task_id": session.prefetch_task_id,
+            "label": session.prefetch_label,
+            "active": bool(
+                session.prefetch_job is not None and not session.prefetch_job.done()
+            ),
+        },
         "progress": {
             "step": session.progress_step,
             "total": session.progress_total,

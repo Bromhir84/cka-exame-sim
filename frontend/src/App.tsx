@@ -108,17 +108,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (
-      !session ||
-      (session.status !== "provisioning" && session.status !== "switching")
-    ) {
+    if (!session) return;
+    const prefetchWatch = !!session.prefetch?.task_id;
+    const heavy =
+      session.status === "provisioning" || session.status === "switching";
+    // Also poll lightly while ready so next-cluster prefetch labels refresh.
+    if (!heavy && !(session.status === "ready" && prefetchWatch)) {
       return;
     }
     const id = window.setInterval(async () => {
       try {
         const s = await getSession(session.session_id);
         setSession(s);
-        if (s.status === "ready") {
+        if (heavy && s.status === "ready") {
           const t = await getSessionTasks(s.session_id);
           setTasks(t);
           setSelectedId(s.active_task_id ?? selectedId ?? t[0]?.id ?? null);
@@ -144,9 +146,9 @@ export default function App() {
       } catch (e) {
         setError(String((e as Error).message || e));
       }
-    }, 2000);
+    }, heavy ? 2000 : 4000);
     return () => window.clearInterval(id);
-  }, [session, pushToast]);
+  }, [session, pushToast, selectedId]);
 
   // Wake Lock while exam ready
   useEffect(() => {
@@ -550,6 +552,8 @@ export default function App() {
                 switching={switching}
                 openedTaskIds={session.opened_task_ids ?? []}
                 finishedTaskIds={session.finished_task_ids ?? []}
+                prefetchLabel={session.prefetch?.label || null}
+                prefetchTaskId={session.prefetch?.task_id ?? null}
               />
               <div
                 className="exam-divider"

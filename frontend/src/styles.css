@@ -401,6 +401,10 @@ body {
   flex: 1 1 14rem;
 }
 
+.task-prefetch {
+  color: var(--accent-2, #7eb8ff);
+}
+
 .workspace {
   min-height: 0;
   height: 100%;

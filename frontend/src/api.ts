@@ -50,6 +50,11 @@ export type Session = {
   opened_task_ids?: string[];
   /** Graded + cluster removed; scores hidden until End Exam */
   finished_task_ids?: string[];
+  prefetch?: {
+    task_id?: string | null;
+    label?: string;
+    active?: boolean;
+  } | null;
 };
 
 export type CheckResult = {

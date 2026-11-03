@@ -9,6 +9,8 @@ type Props = {
   switching?: boolean;
   openedTaskIds?: string[];
   finishedTaskIds?: string[];
+  prefetchLabel?: string | null;
+  prefetchTaskId?: string | null;
 };
 
 export default function TaskPanel({
@@ -19,6 +21,8 @@ export default function TaskPanel({
   switching = false,
   openedTaskIds = [],
   finishedTaskIds = [],
+  prefetchLabel = null,
+  prefetchTaskId = null,
 }: Props) {
   const selected = tasks.find((t) => t.id === selectedId) ?? tasks[0];
   const index = Math.max(
@@ -63,7 +67,9 @@ export default function TaskPanel({
                       ? " · finished"
                       : opened.has(t.id)
                         ? " · cluster kept"
-                        : ""}
+                        : prefetchTaskId === t.id
+                          ? " · warming up"
+                          : ""}
                   </span>
                   <span className="task-weight">
                     {t.weight}% · {t.domain}
@@ -114,11 +120,14 @@ export default function TaskPanel({
                   : "Finish grades this question quietly, removes its cluster to free RAM, and keeps the result until End Exam."}
               </p>
             </div>
+            {prefetchLabel ? (
+              <p className="task-nav-note task-prefetch">{prefetchLabel}</p>
+            ) : null}
             <p className="task-nav-note">
               Each question keeps its own kind cluster. Leaving parks it (work
-              is preserved); returning reconnects. First open of a question
-              provisions a new cluster and can take a few minutes. Opening many
-              questions uses more RAM.
+              is preserved); returning reconnects. While you work, the next
+              question’s cluster warms up in the background so Next is faster.
+              Opening many questions uses more RAM.
             </p>
           </>
         ) : (
