@@ -6,15 +6,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./tasks:/app/tasks:ro
-      - ./desktop:/app/desktop:ro
       - session-data:/var/lib/cka-sessions
     environment:
       TASKS_DIR: /app/tasks
       SESSIONS_DIR: /var/lib/cka-sessions
       EXAM_DURATION_MINUTES: "120"
       CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173"
-      DESKTOP_IMAGE: cka-exame-sim-desktop
-      DESKTOP_CONTEXT: /app/desktop
     extra_hosts:
       - "host.docker.internal:host-gateway"
     privileged: true
@@ -30,16 +27,6 @@ services:
       timeout: 5s
       retries: 30
       start_period: 15s
-    depends_on:
-      desktop-image:
-        condition: service_completed_successfully
-
-  # Build the exam desktop image, then exit (not a long-running service)
-  desktop-image:
-    build: ./desktop
-    image: cka-exame-sim-desktop
-    entrypoint: ["/bin/true"]
-    restart: "no"
 
   frontend:
     build: ./frontend

@@ -69,17 +69,16 @@ docker compose up --build -d
 - UI: http://localhost:5173
 - API: http://localhost:8000
 
-Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, ingress, optional desktop). The first run can take several minutes while images are pulled; later starts are usually faster. Then work in the terminal (or Desktop tab). Click **End Exam** (or wait for the timer) for your score.
+Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, ingress). The first run can take several minutes while images are pulled; later starts are usually faster. Then work in the **Terminal** and **Docs** tabs. Click **End Exam** (or wait for the timer) for your score.
 
 The exam workspace includes:
 
 - **Terminal** — interactive bash with `kubectl` (and `k` alias) plus **Tab completion**
 - **Docs** — allowlisted browser matching the real CKA list (`kubernetes.io/docs` + translations, `kubernetes.io/blog`, `helm.sh/docs`, `gateway-api.sigs.k8s.io`)
-- **Desktop** — optional noVNC remote desktop (XFCE + allowlisted Firefox) for exam-style realism
 
 Grading uses multi-step checks with partial credit; after you end the exam, solutions (`answers.md`) appear in the score report.
 
-Only one exam session can run at a time. Ending the exam tears down all question clusters and the desktop container.
+Only one exam session can run at a time. Ending the exam tears down all question clusters.
 
 ## Development (without Compose UI)
 
@@ -103,13 +102,12 @@ python scripts/validate-tasks.py
 
 ## Project layout
 
-- `backend/` — FastAPI session API, WebSocket PTY, grader, desktop lifecycle
+- `backend/` — FastAPI session API, WebSocket PTY, grader
 - `frontend/` — React + Vite + xterm.js exam UI
-- `desktop/` — XFCE + TigerVNC + noVNC + kubectl + allowlisted Firefox image
-- `tasks/` — 56-task bank + `catalog.yaml` slots for domain-balanced draws
+- `tasks/` — question bank + `catalog.yaml` slots for domain-balanced draws
 - `scripts/install.sh` / `scripts/install.ps1` — one-line installers
 - `install.bat` — Windows one-click start
 
 ## License / attribution
 
-This project is independent practice software. Remote-desktop exam UX ideas were inspired by public descriptions of [CK-X](https://github.com/sailor-sh/CK-X); **no CK-X source code is vendored** (CK-X is BSL-licensed).
+This project is independent practice software. Exam UX ideas were inspired by public descriptions of [CK-X](https://github.com/sailor-sh/CK-X); **no CK-X source code is vendored** (CK-X is BSL-licensed).

@@ -82,7 +82,7 @@ if (Test-Path (Join-Path $Target ".git")) {
 }
 
 Set-Location $Target
-Write-Host "==> Building images (backend, frontend, exam desktop)…"
+Write-Host "==> Building images (backend, frontend)…"
 docker compose build
 if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
 Write-Host "==> Starting stack…"
@@ -111,7 +111,7 @@ Write-Host ""
 Write-Host "Ready." -ForegroundColor Green
 Write-Host "  UI:  http://localhost:5173"
 Write-Host "  API: http://localhost:8000"
-Write-Host "First Start Exam can take several minutes (kind + networking + optional desktop)."
+Write-Host "First Start Exam can take several minutes (kind + networking)."
 Write-Host "Stop with:  docker compose down"
 Start-Process "http://localhost:5173"
 

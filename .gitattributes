@@ -1,4 +1,2 @@
 *.sh text eol=lf
-desktop/xstartup text eol=lf
-desktop/entrypoint.sh text eol=lf
 scripts/install.sh text eol=lf

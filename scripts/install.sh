@@ -47,7 +47,7 @@ else
 fi
 
 cd "$TARGET"
-echo "==> Building images (backend, frontend, exam desktop)…"
+echo "==> Building images (backend, frontend)…"
 docker compose build
 echo "==> Starting stack…"
 docker compose up -d
@@ -71,7 +71,7 @@ echo "Ready."
 echo "  UI:  http://localhost:5173"
 echo "  API: http://localhost:8000"
 echo
-echo "First Start Exam can take several minutes (kind + networking + optional desktop)."
+echo "First Start Exam can take several minutes (kind + networking)."
 echo "Stop with:  docker compose down"
 echo
 if command -v open >/dev/null 2>&1; then

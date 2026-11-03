@@ -569,8 +569,6 @@ export default function App() {
                   key={`${session.session_id}-${session.active_task_id}`}
                   sessionId={session.session_id}
                   active={ready}
-                  desktopUrl={session.desktop_url ?? null}
-                  desktopError={session.desktop_error ?? null}
                 />
               ) : (
                 <div className="workspace workspace-empty">

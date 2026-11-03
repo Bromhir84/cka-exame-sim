@@ -53,7 +53,7 @@ if exist ".git" (
   )
 )
 
-echo [1/3] Building images (backend, frontend, exam desktop)...
+echo [1/3] Building images (backend, frontend)...
 docker compose build
 if errorlevel 1 (
   echo [ERROR] docker compose build failed.
@@ -90,7 +90,7 @@ echo Ready.
 echo   UI:  http://localhost:5173
 echo   API: http://localhost:8000
 echo.
-echo First "Start Exam" can take several minutes (kind + networking + optional desktop).
+echo First "Start Exam" can take several minutes (kind + networking).
 echo Stop with:  docker compose down
 echo.
 endlocal

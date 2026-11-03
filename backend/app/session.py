@@ -11,7 +11,6 @@ from enum import Enum
 from pathlib import Path
 
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
-from .desktop import get_desktop_error, start_desktop, stop_desktop
 from .grader import assemble_score, grade_task, run_setup
 from .tasks_loader import Task, select_exam_tasks
 
@@ -25,8 +24,8 @@ class SessionStatus(str, Enum):
     ERROR = "error"
 
 
-PROVISION_STEPS = 7
-RECONNECT_STEPS = 3
+PROVISION_STEPS = 6
+RECONNECT_STEPS = 2
 
 
 @dataclass
@@ -50,8 +49,6 @@ class ExamSession:
     score: dict | None = None
     tasks: list[Task] = field(default_factory=list)
     domain: str | None = None  # None = full multi-domain exam
-    desktop_url: str | None = None
-    desktop_error: str | None = None
     progress_step: int = 0
     progress_total: int = PROVISION_STEPS
     progress_label: str = "Queued…"
@@ -345,26 +342,13 @@ async def _destroy_all_clusters(session: ExamSession) -> None:
     session.task_clusters.clear()
 
 
-async def _start_session_desktop(session: ExamSession) -> None:
-    try:
-        session.desktop_url = await start_desktop(
-            session.id, session.kubeconfig, session.cluster_name
-        )
-        session.desktop_error = (
-            None if session.desktop_url else get_desktop_error(session.id)
-        )
-    except Exception as exc:  # noqa: BLE001
-        session.desktop_url = None
-        session.desktop_error = str(exc)
-
-
 async def _warm_task_cluster(
     session: ExamSession,
     task: Task,
     *,
     on_progress,
 ) -> TaskClusterState:
-    """Create kind cluster + networking + task setup. Does not bind desktop/active."""
+    """Create kind cluster + networking + task setup. Does not bind active."""
     if task.id in session.task_clusters:
         return session.task_clusters[task.id]
 
@@ -428,7 +412,7 @@ async def _warm_task_cluster(
 
 
 async def _provision_task_cluster(session: ExamSession, task: Task) -> None:
-    """Create (or reuse) a cluster and make it the active desktop target."""
+    """Create (or reuse) a cluster and make it the active terminal target."""
     await _await_prefetch_if_needed(session, task.id)
     if task.id in session.task_clusters:
         await _reconnect_task_cluster(session, task)
@@ -444,9 +428,6 @@ async def _provision_task_cluster(session: ExamSession, task: Task) -> None:
         on_progress=lambda step, label: _set_progress(session, step, label),
     )
     _bind_active_cluster(session, task.id)
-
-    _set_progress(session, 7, "Starting remote desktop…")
-    await _start_session_desktop(session)
     _set_progress(session, PROVISION_STEPS, "Ready")
 
 
@@ -463,10 +444,6 @@ async def _reconnect_task_cluster(session: ExamSession, task: Task) -> None:
     session.progress_step = 2
     session.progress_label = "Waiting for cluster API…"
     await _wait_api(state.kubeconfig, timeout=120)
-
-    session.progress_step = 3
-    session.progress_label = "Starting remote desktop…"
-    await _start_session_desktop(session)
     session.progress_label = "Ready"
 
 
@@ -600,7 +577,6 @@ async def _provision(session: ExamSession) -> None:
         session.status = SessionStatus.ERROR
         session.error = str(exc)
         session.progress_label = "Provisioning failed"
-        await stop_desktop(session.id)
         await _destroy_all_clusters(session)
 
 
@@ -669,9 +645,6 @@ async def _switch_task(session_id: str, task_id: str) -> None:
         try:
             session.progress_step = 1
             session.progress_label = "Parking current question cluster…"
-            await stop_desktop(session.id)
-            session.desktop_url = None
-            session.desktop_error = None
             if leaving_id and leaving_id in session.task_clusters:
                 leaving = session.task_clusters[leaving_id]
                 await _set_cluster_paused(leaving.cluster_name, True)
@@ -692,7 +665,6 @@ async def _switch_task(session_id: str, task_id: str) -> None:
             session.status = SessionStatus.ERROR
             session.error = str(exc)
             session.progress_label = "Question switch failed"
-            await stop_desktop(session.id)
             # Keep other question clusters; only drop a half-created target if needed
             if task_id not in session.task_clusters:
                 await _destroy_cluster(_cluster_name_for(session, task_id))
@@ -735,7 +707,7 @@ async def activate_task(session_id: str, task_id: str) -> ExamSession:
     return session
 
 
-FINISH_STEPS = 4
+FINISH_STEPS = 3
 
 
 def _next_unfinished_task_id(session: ExamSession, after_id: str) -> str | None:
@@ -771,12 +743,6 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
             await _grade_task_cluster(session, task_id)
 
             session.progress_step = 2
-            session.progress_label = "Stopping desktop…"
-            if was_active:
-                await stop_desktop(session.id)
-                session.desktop_url = None
-
-            session.progress_step = 3
             session.progress_label = "Removing question cluster…"
             state = session.task_clusters.pop(task_id, None)
             if state:
@@ -784,7 +750,7 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
             elif was_active and session.cluster_name:
                 await _destroy_cluster(session.cluster_name)
 
-            session.progress_step = 4
+            session.progress_step = 3
             if was_active:
                 next_id = _next_unfinished_task_id(session, task_id)
                 if next_id:
@@ -814,9 +780,6 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
             session.status = SessionStatus.ERROR
             session.error = str(exc)
             session.progress_label = "Finish question failed"
-            if was_active:
-                await stop_desktop(session.id)
-                session.desktop_url = None
 
 
 async def finish_task(session_id: str, task_id: str) -> ExamSession:
@@ -937,8 +900,6 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
     if not session:
         return
     await _cancel_prefetch(session)
-    await stop_desktop(session_id)
-    session.desktop_url = None
     await _destroy_all_clusters(session)
     if session.workdir.exists():
         shutil.rmtree(session.workdir, ignore_errors=True)
@@ -973,8 +934,6 @@ def session_public(session: ExamSession) -> dict:
         "score": session.score,
         "task_ids": [t.id for t in session.tasks],
         "domain": session.domain,
-        "desktop_url": session.desktop_url,
-        "desktop_error": session.desktop_error,
         "active_task_id": session.active_task_id,
         "opened_task_ids": sorted(session.task_clusters.keys()),
         # IDs only — scores stay hidden until End Exam (status=done)
