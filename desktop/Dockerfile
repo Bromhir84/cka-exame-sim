@@ -12,7 +12,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl wget gnupg \
     xfce4 xfce4-terminal dbus-x11 \
-    tigervnc-standalone-server tigervnc-common \
+    tigervnc-standalone-server tigervnc-common tigervnc-tools \
     novnc websockify \
     bash-completion procps \
     && rm -rf /var/lib/apt/lists/*

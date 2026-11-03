@@ -5,8 +5,9 @@ export USER="${USER:-candidate}"
 export HOME="${HOME:-/home/candidate}"
 mkdir -p "$HOME/.vnc" "$HOME/.kube"
 
-# VNC password
-echo "${VNC_PW:-cka}" | vncpasswd -f > "$HOME/.vnc/passwd"
+# VNC password (tigervnc-tools provides tigervncpasswd; vncpasswd is the alternatives name)
+vnc_pw_bin="$(command -v vncpasswd || command -v tigervncpasswd)"
+printf '%s\n' "${VNC_PW:-cka}" | "$vnc_pw_bin" -f > "$HOME/.vnc/passwd"
 chmod 600 "$HOME/.vnc/passwd"
 
 # Kill stale sessions
