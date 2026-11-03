@@ -81,9 +81,13 @@ async def _run(cmd: list[str], timeout: int = 600) -> tuple[int, str]:
 
 
 def _kind_config(path: Path) -> None:
+    # No hostPort mappings: publishing fixed host ports (8080/8443) collides with
+    # other local services and leftover containers. Ingress still works in-cluster
+    # via the kind ingress-nginx hostPorts on the node; use kubectl/curl from the
+    # exam terminal (not localhost:8080 on the Docker host).
     path.write_text(
         textwrap.dedent(
-            f"""\
+            """\
             kind: Cluster
             apiVersion: kind.x-k8s.io/v1alpha4
             nodes:
@@ -94,13 +98,6 @@ def _kind_config(path: Path) -> None:
                     nodeRegistration:
                       kubeletExtraArgs:
                         node-labels: "ingress-ready=true"
-                extraPortMappings:
-                  - containerPort: 80
-                    hostPort: 8080
-                    protocol: TCP
-                  - containerPort: 443
-                    hostPort: 8443
-                    protocol: TCP
               - role: worker
             networking:
               disableDefaultCNI: true
