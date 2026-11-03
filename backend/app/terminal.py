@@ -24,9 +24,9 @@ def _write_bashrc(path, cluster_name: str) -> None:
                 "# CKA exam practice shell",
                 'export KUBECONFIG="$KUBECONFIG"',
                 "export ETCDCTL_API=3",
-                f"export CLUSTER_NAME={cluster_name}",
+                f'export CLUSTER_NAME="{cluster_name}"',
                 "export TERM=xterm-256color",
-                r"export PS1='candidate@cka:\w\$ '",
+                "export PS1='candidate@cka:\\w\\$ '",
                 "alias k=kubectl",
                 "",
                 "# bash completion + kubectl",
@@ -47,6 +47,7 @@ def _write_bashrc(path, cluster_name: str) -> None:
         )
         + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 
@@ -61,8 +62,10 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
     env = os.environ.copy()
     env["KUBECONFIG"] = str(session.kubeconfig)
     env["TERM"] = "xterm-256color"
-    # Ensure interactive completion works
-    env["BASH_ENV"] = ""
+    env["HOME"] = str(session.workdir)
+    # Avoid non-interactive BASH_ENV sourcing surprises
+    env.pop("BASH_ENV", None)
+    env.pop("ENV", None)
 
     bashrc = session.workdir / ".bashrc"
     _write_bashrc(bashrc, session.cluster_name)
@@ -70,12 +73,12 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
     master_fd, slave_fd = pty.openpty()
     _set_winsize(slave_fd, 24, 80)
 
-    # -i enables programmable completion / readline Tab behavior
+    # Use HOME/.bashrc instead of --rcfile: some bash builds mis-parse
+    # `bash -i --rcfile …` under a PTY and exit with `bash: --: invalid option`.
     proc = await asyncio.create_subprocess_exec(
-        "bash",
+        "/bin/bash",
+        "--noprofile",
         "-i",
-        "--rcfile",
-        str(bashrc),
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
@@ -115,7 +118,9 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
                         try:
                             _, dims = text.split(":", 1)
                             cols_s, rows_s = dims.split("x")
-                            _set_winsize(master_fd, int(rows_s), int(cols_s))
+                            cols, rows = int(cols_s), int(rows_s)
+                            if cols > 0 and rows > 0:
+                                _set_winsize(master_fd, rows, cols)
                         except ValueError:
                             pass
                     else:
