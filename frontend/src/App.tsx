@@ -12,8 +12,8 @@ import {
 } from "./api";
 import ScoreReport from "./components/ScoreReport";
 import TaskPanel from "./components/TaskPanel";
-import Terminal from "./components/Terminal";
 import Timer from "./components/Timer";
+import Workspace from "./components/Workspace";
 
 type Phase = "lobby" | "exam" | "finished";
 
@@ -237,7 +237,7 @@ export default function App() {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
               />
-              <Terminal sessionId={session.session_id} active={ready} />
+              <Workspace sessionId={session.session_id} active={ready} />
             </>
           )}
           {session.status === "grading" && (

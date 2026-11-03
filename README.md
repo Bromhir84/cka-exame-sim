@@ -60,6 +60,11 @@ docker compose up --build -d
 
 Click **Start Exam**, wait for the cluster to become ready (often **2–5 minutes** on first run while kind pulls node images and installs Calico + ingress), then work in the terminal. Click **End Exam** (or wait for the timer) for your score.
 
+The exam workspace includes:
+
+- **Terminal** — interactive bash with `kubectl` (and `k` alias) plus **Tab completion**
+- **Docs** — allowlisted browser for exam-style resources only (`kubernetes.io` docs/blog and `github.com/kubernetes*`)
+
 Only one exam session can run at a time. Ending the exam tears down the kind cluster.
 
 ## Development (without Compose UI)

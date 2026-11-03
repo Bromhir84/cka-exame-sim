@@ -14,6 +14,7 @@ from .session import (
     get_session,
     session_public,
 )
+from .docs_proxy import router as docs_router
 from .tasks_loader import DOMAIN_LABELS, bank_summary, validate_catalog
 from .terminal import terminal_websocket
 
@@ -41,6 +42,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(docs_router)
 
 
 @app.get("/api/health")

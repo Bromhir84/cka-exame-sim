@@ -5,7 +5,7 @@ ARG KIND_VERSION=v0.26.0
 ARG ETCD_VERSION=v3.5.16
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates bash procps util-linux \
+    curl ca-certificates bash bash-completion procps util-linux \
     && rm -rf /var/lib/apt/lists/*
 
 # kubectl

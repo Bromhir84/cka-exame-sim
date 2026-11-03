@@ -4,3 +4,5 @@ websockets==14.1
 pyyaml==6.0.2
 pydantic==2.10.4
 aiofiles==24.1.0
+httpx==0.28.1
+beautifulsoup4==4.12.3

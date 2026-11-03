@@ -6,7 +6,6 @@ import os
 import pty
 import struct
 import termios
-from pathlib import Path
 
 from fastapi import WebSocket, WebSocketDisconnect
 
@@ -16,6 +15,39 @@ from .session import SessionStatus, get_session
 def _set_winsize(fd: int, rows: int, cols: int) -> None:
     winsize = struct.pack("HHHH", rows, cols, 0, 0)
     fcntl.ioctl(fd, termios.TIOCSWINSZ, winsize)
+
+
+def _write_bashrc(path, cluster_name: str) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "# CKA exam practice shell",
+                'export KUBECONFIG="$KUBECONFIG"',
+                "export ETCDCTL_API=3",
+                f"export CLUSTER_NAME={cluster_name}",
+                "export TERM=xterm-256color",
+                r"export PS1='candidate@cka:\w\$ '",
+                "alias k=kubectl",
+                "",
+                "# bash completion + kubectl",
+                "if [ -f /usr/share/bash-completion/bash_completion ]; then",
+                "  . /usr/share/bash-completion/bash_completion",
+                "elif [ -f /etc/bash_completion ]; then",
+                "  . /etc/bash_completion",
+                "fi",
+                "if command -v kubectl >/dev/null 2>&1; then",
+                "  source <(kubectl completion bash)",
+                "  complete -o default -F __start_kubectl k",
+                "fi",
+                "",
+                "echo 'CKA practice shell — kubectl + completion ready (Tab). Alias: k=kubectl'",
+                "echo 'Docs browser: use the Docs tab (allowlisted kubernetes.io / GitHub only).'",
+                "",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
@@ -29,23 +61,19 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
     env = os.environ.copy()
     env["KUBECONFIG"] = str(session.kubeconfig)
     env["TERM"] = "xterm-256color"
-    env["PS1"] = r"candidate@cka:\w\$ "
-    # Helpful aliases for the exam environment
+    # Ensure interactive completion works
+    env["BASH_ENV"] = ""
+
     bashrc = session.workdir / ".bashrc"
-    bashrc.write_text(
-        "export KUBECONFIG=\"$KUBECONFIG\"\n"
-        "alias k=kubectl\n"
-        "export ETCDCTL_API=3\n"
-        f"export CLUSTER_NAME={session.cluster_name}\n"
-        "echo 'CKA practice shell — kubectl configured. Alias: k=kubectl'\n",
-        encoding="utf-8",
-    )
+    _write_bashrc(bashrc, session.cluster_name)
 
     master_fd, slave_fd = pty.openpty()
     _set_winsize(slave_fd, 24, 80)
 
+    # -i enables programmable completion / readline Tab behavior
     proc = await asyncio.create_subprocess_exec(
         "bash",
+        "-i",
         "--rcfile",
         str(bashrc),
         stdin=slave_fd,
@@ -80,8 +108,6 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
                     break
                 if "bytes" in message and message["bytes"] is not None:
                     payload = message["bytes"]
-                    # xterm resize protocol: b'\x01' + rows:cols as utf-8 text? 
-                    # We use JSON text messages for resize from the frontend.
                     await loop.run_in_executor(None, os.write, master_fd, payload)
                 elif "text" in message and message["text"] is not None:
                     text = message["text"]
