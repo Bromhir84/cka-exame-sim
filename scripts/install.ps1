@@ -89,6 +89,24 @@ Write-Host "==> Starting stack…"
 docker compose up -d
 if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
 
+Write-Host "==> Waiting for UI + API (http://localhost:5173/api/health)…"
+$ready = $false
+for ($i = 1; $i -le 90; $i++) {
+  try {
+    $resp = Invoke-WebRequest -Uri "http://localhost:5173/api/health" -UseBasicParsing -TimeoutSec 3
+    if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 300) {
+      $ready = $true
+      break
+    }
+  } catch {
+    # still starting
+  }
+  Start-Sleep -Seconds 2
+}
+if (-not $ready) {
+  throw "Stack did not become healthy in time. Check: docker compose logs"
+}
+
 Write-Host ""
 Write-Host "Ready." -ForegroundColor Green
 Write-Host "  UI:  http://localhost:5173"

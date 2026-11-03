@@ -18,6 +18,18 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     privileged: true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
     depends_on:
       desktop-image:
         condition: service_completed_successfully
@@ -34,7 +46,8 @@ services:
     ports:
       - "5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   session-data:

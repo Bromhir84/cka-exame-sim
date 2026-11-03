@@ -52,6 +52,20 @@ docker compose build
 echo "==> Starting stack…"
 docker compose up -d
 
+echo "==> Waiting for UI + API (http://localhost:5173/api/health)…"
+ready=0
+for i in $(seq 1 90); do
+  if curl -fsS "http://localhost:5173/api/health" >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 2
+done
+if [ "$ready" -ne 1 ]; then
+  echo "ERROR: Stack did not become healthy in time. Check: docker compose logs"
+  exit 1
+fi
+
 echo
 echo "Ready."
 echo "  UI:  http://localhost:5173"

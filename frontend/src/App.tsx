@@ -61,9 +61,29 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    fetchBankSummary()
-      .then(setBank)
-      .catch((e) => setError(String(e.message || e)));
+    let cancelled = false;
+    const loadBank = async () => {
+      // Retry briefly: first open after install often races the API proxy.
+      let lastErr: unknown = null;
+      for (let i = 0; i < 15; i++) {
+        try {
+          const summary = await fetchBankSummary();
+          if (!cancelled) {
+            setBank(summary);
+            setError(null);
+          }
+          return;
+        } catch (e) {
+          lastErr = e;
+          await new Promise((r) => window.setTimeout(r, 1000));
+        }
+      }
+      if (!cancelled) {
+        setError(String((lastErr as Error)?.message || lastErr || "API unavailable"));
+      }
+    };
+    void loadBank();
+
     const saved = loadSavedSession();
     if (saved?.session_id) {
       getSession(saved.session_id)
@@ -76,6 +96,9 @@ export default function App() {
         })
         .catch(() => localStorage.removeItem(SESSION_KEY));
     }
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

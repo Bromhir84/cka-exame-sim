@@ -67,15 +67,15 @@ if errorlevel 1 (
 )
 
 echo.
-echo [2/3] Waiting for API health...
+echo [2/3] Waiting for UI + API (via http://localhost:5173/api/health)...
 set /a tries=0
 :wait_health
 set /a tries+=1
-curl.exe -fsS http://localhost:8000/api/health >nul 2>&1
+curl.exe -fsS http://localhost:5173/api/health >nul 2>&1
 if not errorlevel 1 goto healthy
-if %tries% GEQ 60 (
-  echo [ERROR] Backend did not become healthy in time.
-  echo Check logs with: docker compose logs backend
+if %tries% GEQ 90 (
+  echo [ERROR] Stack did not become healthy in time.
+  echo Check logs with: docker compose logs
   exit /b 1
 )
 timeout /t 2 /nobreak >nul
