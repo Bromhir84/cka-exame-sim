@@ -9,6 +9,19 @@ type Props = {
 
 export default function ScoreReport({ score, onClose }: Props) {
   const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>({});
+  const answerIds = score.results.filter((r) => r.answers).map((r) => r.id);
+  const allOpen =
+    answerIds.length > 0 && answerIds.every((id) => openAnswers[id]);
+
+  const toggleAllAnswers = () => {
+    if (allOpen) {
+      setOpenAnswers({});
+      return;
+    }
+    const next: Record<string, boolean> = {};
+    for (const id of answerIds) next[id] = true;
+    setOpenAnswers(next);
+  };
 
   return (
     <div className="modal-backdrop">
@@ -42,7 +55,14 @@ export default function ScoreReport({ score, onClose }: Props) {
           ))}
         </ul>
 
-        <h3>By question</h3>
+        <div className="score-answers-toolbar">
+          <h3>By question</h3>
+          {answerIds.length > 0 && (
+            <button type="button" className="btn" onClick={toggleAllAnswers}>
+              {allOpen ? "Hide all solutions" : "Show all solutions"}
+            </button>
+          )}
+        </div>
         <ul className="task-scores detailed">
           {score.results.map((r) => (
             <li key={r.id} className={r.passed ? "ok" : "no"}>

@@ -14,7 +14,7 @@ Browser-based CKA practice exam with a real Kubernetes cluster (kind), embedded 
 
 Pass hint: **66%** (same as the real exam).
 
-Each **full exam** randomly draws **8 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
+Each **full exam** randomly draws **16 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
 
 You can also choose a **single domain** in the lobby to practice every question in that domain (weights equalized to 100%).
 

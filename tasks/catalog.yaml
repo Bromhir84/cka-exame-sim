@@ -1,22 +1,43 @@
-# Exam draws one task per slot from the matching domain pool (no repeats).
-# Slot weights always sum to 100% (official CKA domain totals).
+# Exam draws one unused bank task per slot (no repeats).
+# 16 questions · official CKA domain weight totals (sum 100).
 slots:
+  # Cluster Architecture, Installation & Configuration — 25%
   - domain: architecture
-    weight: 10
+    weight: 7
   - domain: architecture
-    weight: 15
+    weight: 6
+  - domain: architecture
+    weight: 6
+  - domain: architecture
+    weight: 6
+  # Workloads & Scheduling — 15%
   - domain: workloads
-    weight: 15
+    weight: 5
+  - domain: workloads
+    weight: 5
+  - domain: workloads
+    weight: 5
+  # Services & Networking — 20%
   - domain: networking
-    weight: 10
+    weight: 7
   - domain: networking
-    weight: 10
+    weight: 7
+  - domain: networking
+    weight: 6
+  # Storage — 10%
   - domain: storage
-    weight: 10
+    weight: 5
+  - domain: storage
+    weight: 5
+  # Troubleshooting — 30%
   - domain: troubleshooting
-    weight: 15
+    weight: 8
   - domain: troubleshooting
-    weight: 15
+    weight: 8
+  - domain: troubleshooting
+    weight: 7
+  - domain: troubleshooting
+    weight: 7
 
 bank:
   # architecture (8)

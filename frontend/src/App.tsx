@@ -329,7 +329,7 @@ export default function App() {
                 onChange={(e) => setDomainFilter(e.target.value)}
               >
                 <option value="">
-                  Full exam ({bank?.slots ?? 8} questions · all domains)
+                  Full exam ({bank?.slots ?? 16} questions · all domains)
                 </option>
                 {(bank?.by_domain ?? []).map((d) => (
                   <option key={d.domain} value={d.domain}>
