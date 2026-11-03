@@ -12,7 +12,7 @@ from pathlib import Path
 
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
 from .grader import grade_tasks, run_setup
-from .tasks_loader import Task, load_tasks
+from .tasks_loader import Task, select_exam_tasks
 
 
 class SessionStatus(str, Enum):
@@ -269,7 +269,6 @@ async def _provision(session: ExamSession) -> None:
         await _wait_nodes_ready(session.kubeconfig, timeout=300)
         await _install_ingress(session.kubeconfig)
 
-        session.tasks = load_tasks()
         for task in session.tasks:
             await run_setup(task, session.kubeconfig, session.cluster_name)
 
@@ -306,7 +305,7 @@ async def create_session() -> ExamSession:
         workdir=workdir,
         kubeconfig=workdir / "kubeconfig",
         created_at=datetime.now(timezone.utc),
-        tasks=load_tasks(),
+        tasks=select_exam_tasks(),
     )
     _sessions[session_id] = session
     asyncio.create_task(_provision(session))
@@ -360,4 +359,5 @@ def session_public(session: ExamSession) -> dict:
         "remaining_seconds": remaining,
         "error": session.error,
         "score": session.score,
+        "task_ids": [t.id for t in session.tasks],
     }

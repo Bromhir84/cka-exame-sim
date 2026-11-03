@@ -7,6 +7,19 @@ export type Task = {
   prompt: string;
 };
 
+export type BankSummary = {
+  count: number;
+  slots: number;
+  slot_weight_total: number;
+  note: string;
+  by_domain: Array<{
+    domain: string;
+    label: string;
+    count: number;
+    titles: string[];
+  }>;
+};
+
 export type Session = {
   session_id: string;
   status: "provisioning" | "ready" | "grading" | "done" | "error";
@@ -16,6 +29,7 @@ export type Session = {
   remaining_seconds: number | null;
   error: string | null;
   score: ScoreReport | null;
+  task_ids?: string[];
 };
 
 export type ScoreReport = {
@@ -47,9 +61,8 @@ async function json<T>(res: Response): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function fetchPreviewTasks(): Promise<Task[]> {
-  const data = await json<{ tasks: Task[] }>(await fetch("/api/tasks"));
-  return data.tasks;
+export async function fetchBankSummary(): Promise<BankSummary> {
+  return json<BankSummary>(await fetch("/api/tasks"));
 }
 
 export async function startSession(): Promise<Session> {

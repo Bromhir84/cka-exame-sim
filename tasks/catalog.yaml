@@ -1,9 +1,58 @@
-tasks:
+# Exam draws one task per slot from the matching domain pool (no repeats).
+# Slot weights always sum to 100% (official CKA domain totals).
+slots:
+  - domain: architecture
+    weight: 10
+  - domain: architecture
+    weight: 15
+  - domain: workloads
+    weight: 15
+  - domain: networking
+    weight: 10
+  - domain: networking
+    weight: 10
+  - domain: storage
+    weight: 10
+  - domain: troubleshooting
+    weight: 15
+  - domain: troubleshooting
+    weight: 15
+
+bank:
+  # architecture (8)
   - 01-rbac
   - 02-etcd-backup
+  - 09-clusterrole-binding
+  - 10-rbac-secrets-reader
+  - 11-role-services
+  - 12-clusterrole-ns-get
+  - 13-sa-deploy-binding
+  - 14-rbac-jobs
+  # workloads (5)
   - 03-deployment-config
+  - 15-cronjob
+  - 16-scale-deployment
+  - 17-probes-deployment
+  - 18-resource-limits
+  # networking (7)
   - 04-service-ingress
   - 05-network-policy
+  - 19-nodeport-service
+  - 20-ingress-path
+  - 21-networkpolicy-egress
+  - 22-clusterip-multi-port
+  - 23-service-labels
+  # storage (4)
   - 06-persistent-volume
+  - 24-pvc-busybox
+  - 25-pvc-storageclass
+  - 26-pvc-mount-subpath
+  # troubleshooting (8)
   - 07-fix-workload
   - 08-fix-cluster
+  - 27-crashloop-fix
+  - 28-wrong-selector
+  - 29-pending-nodeselector
+  - 30-failing-probe
+  - 31-missing-configmap
+  - 32-service-wrong-target

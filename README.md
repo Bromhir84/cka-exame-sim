@@ -14,6 +14,8 @@ Browser-based CKA practice exam with a real Kubernetes cluster (kind), embedded 
 
 Pass hint: **66%** (same as the real exam).
 
+Each exam run randomly draws **8 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
+
 ## Prerequisites
 
 - Docker Engine or Docker Desktop
@@ -31,7 +33,6 @@ docker compose up --build -d
 
 - UI: http://localhost:5173
 - API: http://localhost:8000
-
 
 Click **Start Exam**, wait for the cluster to become ready (often **2–5 minutes** on first run while kind pulls node images and installs Calico + ingress), then work in the terminal. Click **End Exam** (or wait for the timer) for your score.
 
@@ -51,8 +52,15 @@ npm install
 npm run dev
 ```
 
+Validate the task bank locally:
+
+```bash
+python scripts/validate-tasks.py
+```
+
 ## Project layout
 
 - `backend/` — FastAPI session API, WebSocket PTY, grader
 - `frontend/` — React + Vite + xterm.js exam UI
-- `tasks/` — 8 weighted practice tasks (`prompt.md`, `setup.sh`, `grade.sh`)
+- `tasks/` — 32-task bank + `catalog.yaml` slots for domain-balanced draws
+- `install.bat` — Windows one-click start

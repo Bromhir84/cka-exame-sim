@@ -13,15 +13,14 @@ from .session import (
     get_session,
     session_public,
 )
-from .tasks_loader import load_tasks
+from .tasks_loader import bank_summary, validate_catalog
 from .terminal import terminal_websocket
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-    # Validate task pack on startup
-    load_tasks()
+    validate_catalog()
     yield
 
 
@@ -43,8 +42,8 @@ async def health():
 
 @app.get("/api/tasks")
 async def list_tasks():
-    tasks = load_tasks()
-    return {"tasks": [t.to_public_dict() for t in tasks]}
+    """Lobby summary of the question bank (not a specific exam draw)."""
+    return bank_summary()
 
 
 @app.post("/api/sessions")

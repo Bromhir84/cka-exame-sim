@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   endSession,
-  fetchPreviewTasks,
+  fetchBankSummary,
   getSession,
   getSessionTasks,
   startSession,
+  type BankSummary,
   type ScoreReport as Score,
   type Session,
   type Task,
@@ -18,7 +19,7 @@ type Phase = "lobby" | "exam" | "finished";
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("lobby");
-  const [previewTasks, setPreviewTasks] = useState<Task[]>([]);
+  const [bank, setBank] = useState<BankSummary | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -28,8 +29,8 @@ export default function App() {
   const [ending, setEnding] = useState(false);
 
   useEffect(() => {
-    fetchPreviewTasks()
-      .then(setPreviewTasks)
+    fetchBankSummary()
+      .then(setBank)
       .catch((e) => setError(String(e.message || e)));
   }, []);
 
@@ -142,8 +143,9 @@ export default function App() {
           <section className="lobby-hero">
             <h1>Certified Kubernetes Administrator</h1>
             <p>
-              Timed practice exam against a real kind cluster. Eight weighted
-              tasks across the official CKA domains. Pass hint: 66%.
+              Timed practice exam against a real kind cluster. Each run draws{" "}
+              {bank?.slots ?? 8} random questions from a {bank?.count ?? 32}
+              -task bank while keeping official domain weights. Pass hint: 66%.
             </p>
             <button
               type="button"
@@ -155,15 +157,14 @@ export default function App() {
             </button>
           </section>
           <section className="lobby-tasks">
-            <h2>Question set</h2>
+            <h2>Question bank</h2>
+            <p className="lobby-note">{bank?.note}</p>
             <ul>
-              {previewTasks.map((t, i) => (
-                <li key={t.id}>
+              {(bank?.by_domain ?? []).map((d) => (
+                <li key={d.domain}>
+                  <span>{d.label}</span>
                   <span>
-                    {i + 1}. {t.title}
-                  </span>
-                  <span>
-                    {t.weight}% · {t.domain_label}
+                    {d.count} questions
                   </span>
                 </li>
               ))}
