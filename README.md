@@ -14,7 +14,9 @@ Browser-based CKA practice exam with a real Kubernetes cluster (kind), embedded 
 
 Pass hint: **66%** (same as the real exam).
 
-Each exam run randomly draws **8 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
+Each **full exam** randomly draws **8 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
+
+You can also choose a **single domain** in the lobby to practice every question in that domain (weights equalized to 100%).
 
 ## Prerequisites
 
@@ -23,9 +25,31 @@ Each exam run randomly draws **8 questions** from a **32-question bank**, fillin
 
 ## Quick start
 
-**Windows:** double-click `install.bat` (requires Docker Desktop running).
+Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine) running, and `git` on PATH.
 
-Or from a terminal:
+### One-command install (clone + start)
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/Bromhir84/cka-exame-sim.git; Set-Location cka-exame-sim; .\install.bat
+```
+
+**macOS / Linux:**
+
+```bash
+git clone https://github.com/Bromhir84/cka-exame-sim.git && cd cka-exame-sim && docker compose up --build -d && open http://localhost:5173 2>/dev/null || xdg-open http://localhost:5173 2>/dev/null || true
+```
+
+### Already cloned
+
+**Windows:** double-click `install.bat`, or:
+
+```bat
+install.bat
+```
+
+**Any OS:**
 
 ```bash
 docker compose up --build -d

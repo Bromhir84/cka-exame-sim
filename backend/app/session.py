@@ -35,6 +35,7 @@ class ExamSession:
     error: str | None = None
     score: dict | None = None
     tasks: list[Task] = field(default_factory=list)
+    domain: str | None = None  # None = full multi-domain exam
 
 
 _sessions: dict[str, ExamSession] = {}
@@ -286,7 +287,7 @@ async def _destroy_cluster(cluster_name: str) -> None:
     await _run(["kind", "delete", "cluster", "--name", cluster_name], timeout=120)
 
 
-async def create_session() -> ExamSession:
+async def create_session(domain: str | None = None) -> ExamSession:
     async with _lock:
         # MVP: only one active exam at a time to avoid resource fights
         for s in _sessions.values():
@@ -294,6 +295,11 @@ async def create_session() -> ExamSession:
                 raise RuntimeError(
                     f"An exam session is already active ({s.id}, status={s.status.value})"
                 )
+
+    try:
+        tasks = select_exam_tasks(domain=domain)
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
 
     session_id = uuid.uuid4().hex[:10]
     cluster_name = f"cka-{session_id}"
@@ -305,7 +311,8 @@ async def create_session() -> ExamSession:
         workdir=workdir,
         kubeconfig=workdir / "kubeconfig",
         created_at=datetime.now(timezone.utc),
-        tasks=select_exam_tasks(),
+        tasks=tasks,
+        domain=domain,
     )
     _sessions[session_id] = session
     asyncio.create_task(_provision(session))
@@ -360,4 +367,5 @@ def session_public(session: ExamSession) -> dict:
         "error": session.error,
         "score": session.score,
         "task_ids": [t.id for t in session.tasks],
+        "domain": session.domain,
     }

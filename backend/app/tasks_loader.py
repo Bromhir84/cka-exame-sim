@@ -155,24 +155,51 @@ def bank_summary(tasks_dir: Path | None = None) -> dict:
     }
 
 
+def _distribute_weights(n: int) -> list[int]:
+    """Split 100 points across n tasks as evenly as possible."""
+    if n <= 0:
+        raise ValueError("need at least one task to distribute weights")
+    base, rem = divmod(100, n)
+    return [base + (1 if i < rem else 0) for i in range(n)]
+
+
 def select_exam_tasks(
     tasks_dir: Path | None = None,
     rng: random.Random | None = None,
+    domain: str | None = None,
 ) -> list[Task]:
-    """Pick one unused bank task per slot; assign slot weight."""
+    """Full exam: one unused bank task per slot with official slot weights.
+
+    Domain practice: all bank tasks for that domain, equalized weights summing to 100.
+    """
     root = tasks_dir or TASKS_DIR
-    slots = load_slots(root)
     bank = load_bank(root)
     rng = rng or random.Random()
 
+    if domain is not None:
+        if domain not in DOMAIN_LABELS:
+            raise ValueError(f"Unknown domain: {domain}")
+        pool = [t for t in bank if t.domain == domain]
+        if not pool:
+            raise ValueError(f"No tasks in domain: {domain}")
+        rng.shuffle(pool)
+        weights = _distribute_weights(len(pool))
+        selected: list[Task] = []
+        for base, weight in zip(pool, weights, strict=True):
+            task = copy(base)
+            task.weight = weight
+            selected.append(task)
+        return selected
+
+    slots = load_slots(root)
     pools: dict[str, list[Task]] = defaultdict(list)
     for t in bank:
         pools[t.domain].append(t)
-    for domain in pools:
-        rng.shuffle(pools[domain])
+    for d in pools:
+        rng.shuffle(pools[d])
 
     used: set[str] = set()
-    selected: list[Task] = []
+    selected = []
     for slot in slots:
         pool = [t for t in pools[slot.domain] if t.id not in used]
         if not pool:

@@ -27,6 +27,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
+  /** empty string = full exam; otherwise a domain key */
+  const [domainFilter, setDomainFilter] = useState("");
 
   useEffect(() => {
     fetchBankSummary()
@@ -63,7 +65,7 @@ export default function App() {
     setError(null);
     setScore(null);
     try {
-      const s = await startSession();
+      const s = await startSession(domainFilter || null);
       setSession(s);
       setPhase("exam");
     } catch (e) {
@@ -72,6 +74,15 @@ export default function App() {
       setBusy(false);
     }
   };
+
+  const selectedDomainMeta = bank?.by_domain.find(
+    (d) => d.domain === domainFilter
+  );
+  const startLabel = busy
+    ? "Provisioning cluster…"
+    : domainFilter
+      ? `Start ${selectedDomainMeta?.label ?? domainFilter} practice`
+      : "Start 2-hour exam";
 
   const finish = useCallback(async () => {
     if (!session || ending) return;
@@ -143,29 +154,63 @@ export default function App() {
           <section className="lobby-hero">
             <h1>Certified Kubernetes Administrator</h1>
             <p>
-              Timed practice exam against a real kind cluster. Each run draws{" "}
-              {bank?.slots ?? 8} random questions from a {bank?.count ?? 32}
-              -task bank while keeping official domain weights. Pass hint: 66%.
+              Timed practice against a real kind cluster. Choose a full exam
+              (official domain weights) or focus on one domain. Pass hint: 66%.
             </p>
+
+            <div className="domain-picker">
+              <label htmlFor="domain-filter">Exam scope</label>
+              <select
+                id="domain-filter"
+                value={domainFilter}
+                disabled={busy}
+                onChange={(e) => setDomainFilter(e.target.value)}
+              >
+                <option value="">
+                  Full exam ({bank?.slots ?? 8} questions · all domains)
+                </option>
+                {(bank?.by_domain ?? []).map((d) => (
+                  <option key={d.domain} value={d.domain}>
+                    {d.label} only ({d.count} questions)
+                  </option>
+                ))}
+              </select>
+              <p className="lobby-note">
+                {domainFilter
+                  ? `Practice mode: all ${selectedDomainMeta?.count ?? ""} questions in this domain, weights equalized to 100%.`
+                  : bank?.note}
+              </p>
+            </div>
+
             <button
               type="button"
               className="btn primary lg"
               disabled={busy}
               onClick={onStart}
             >
-              {busy ? "Provisioning cluster…" : "Start 2-hour exam"}
+              {startLabel}
             </button>
           </section>
           <section className="lobby-tasks">
             <h2>Question bank</h2>
-            <p className="lobby-note">{bank?.note}</p>
             <ul>
               {(bank?.by_domain ?? []).map((d) => (
                 <li key={d.domain}>
-                  <span>{d.label}</span>
-                  <span>
-                    {d.count} questions
-                  </span>
+                  <button
+                    type="button"
+                    className={`domain-pick-row ${
+                      domainFilter === d.domain ? "active" : ""
+                    }`}
+                    disabled={busy}
+                    onClick={() =>
+                      setDomainFilter((prev) =>
+                        prev === d.domain ? "" : d.domain
+                      )
+                    }
+                  >
+                    <span>{d.label}</span>
+                    <span>{d.count} questions</span>
+                  </button>
                 </li>
               ))}
             </ul>

@@ -30,6 +30,7 @@ export type Session = {
   error: string | null;
   score: ScoreReport | null;
   task_ids?: string[];
+  domain?: string | null;
 };
 
 export type ScoreReport = {
@@ -65,9 +66,13 @@ export async function fetchBankSummary(): Promise<BankSummary> {
   return json<BankSummary>(await fetch("/api/tasks"));
 }
 
-export async function startSession(): Promise<Session> {
+export async function startSession(domain?: string | null): Promise<Session> {
   return json<Session>(
-    await fetch("/api/sessions", { method: "POST" })
+    await fetch("/api/sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ domain: domain || null }),
+    })
   );
 }
 

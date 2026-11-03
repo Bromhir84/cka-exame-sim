@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from .config import CORS_ORIGINS, SESSIONS_DIR
 from .session import (
@@ -13,8 +14,15 @@ from .session import (
     get_session,
     session_public,
 )
-from .tasks_loader import bank_summary, validate_catalog
+from .tasks_loader import DOMAIN_LABELS, bank_summary, validate_catalog
 from .terminal import terminal_websocket
+
+
+class StartSessionBody(BaseModel):
+    domain: str | None = Field(
+        default=None,
+        description="Optional domain key for domain-only practice; omit for full exam",
+    )
 
 
 @asynccontextmanager
@@ -47,9 +55,15 @@ async def list_tasks():
 
 
 @app.post("/api/sessions")
-async def start_session():
+async def start_session(body: StartSessionBody | None = None):
+    domain = body.domain if body else None
+    if domain is not None and domain not in DOMAIN_LABELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown domain '{domain}'. Valid: {', '.join(DOMAIN_LABELS)}",
+        )
     try:
-        session = await create_session()
+        session = await create_session(domain=domain)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
