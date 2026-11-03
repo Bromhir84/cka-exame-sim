@@ -1,9 +1,9 @@
 checks:
   - id: image
-    description: busybox image
-    weight: 30
+    description: Command fixed to sleep (busybox)
+    weight: 40
     script: checks/image.sh
   - id: ready
-    description: Ready
-    weight: 70
+    description: Deployment Ready
+    weight: 60
     script: checks/ready.sh

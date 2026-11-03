@@ -1,9 +1,9 @@
 checks:
   - id: image
-    description: nginx image kept
-    weight: 30
+    description: Bad nodeSelector removed (nginx kept)
+    weight: 40
     script: checks/image.sh
   - id: ready
     description: Pod Ready
-    weight: 70
+    weight: 60
     script: checks/ready.sh

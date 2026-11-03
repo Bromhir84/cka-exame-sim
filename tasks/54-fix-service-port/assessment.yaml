@@ -1,9 +1,9 @@
 checks:
   - id: target
     description: targetPort 8080
-    weight: 70
+    weight: 60
     script: checks/target.sh
   - id: sel
-    description: Selector unchanged
-    weight: 30
+    description: Endpoints healthy (selector + targetPort)
+    weight: 40
     script: checks/sel.sh
