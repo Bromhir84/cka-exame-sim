@@ -1,0 +1,13 @@
+checks:
+  - id: sa
+    description: ServiceAccount
+    weight: 25
+    script: checks/sa.sh
+  - id: deploy
+    description: Deployment uses SA + image
+    weight: 45
+    script: checks/deploy.sh
+  - id: ready
+    description: Ready
+    weight: 30
+    script: checks/ready.sh

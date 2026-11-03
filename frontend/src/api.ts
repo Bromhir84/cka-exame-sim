@@ -31,6 +31,16 @@ export type Session = {
   score: ScoreReport | null;
   task_ids?: string[];
   domain?: string | null;
+  desktop_url?: string | null;
+};
+
+export type CheckResult = {
+  id: string;
+  description: string;
+  weight: number;
+  passed: boolean;
+  earned: number;
+  output?: string;
 };
 
 export type ScoreReport = {
@@ -45,6 +55,8 @@ export type ScoreReport = {
     weight: number;
     passed: boolean;
     earned: number;
+    checks?: CheckResult[];
+    answers?: string | null;
   }>;
   domains: Array<{
     domain: string;

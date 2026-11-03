@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: Selector app=backend
+    weight: 50
+    script: checks/sel.sh
+  - id: ep
+    description: Has endpoints
+    weight: 50
+    script: checks/ep.sh

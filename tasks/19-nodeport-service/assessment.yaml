@@ -1,0 +1,9 @@
+checks:
+  - id: type
+    description: NodePort type + ports
+    weight: 60
+    script: checks/type.sh
+  - id: sel
+    description: Selector
+    weight: 40
+    script: checks/sel.sh

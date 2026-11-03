@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   endSession,
   fetchBankSummary,
@@ -13,9 +13,22 @@ import {
 import ScoreReport from "./components/ScoreReport";
 import TaskPanel from "./components/TaskPanel";
 import Timer from "./components/Timer";
+import Toasts, { type ToastItem } from "./components/Toasts";
 import Workspace from "./components/Workspace";
 
 type Phase = "lobby" | "exam" | "finished";
+
+const SESSION_KEY = "cka-exam-session";
+const PANEL_KEY = "cka-exam-left-pct";
+
+function loadSavedSession(): { session_id: string } | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("lobby");
@@ -27,16 +40,44 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [ending, setEnding] = useState(false);
-  /** empty string = full exam; otherwise a domain key */
   const [domainFilter, setDomainFilter] = useState("");
+  const [resumeId, setResumeId] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [leftPct, setLeftPct] = useState(() => {
+    const v = Number(localStorage.getItem(PANEL_KEY) || "42");
+    return Number.isFinite(v) ? Math.min(70, Math.max(25, v)) : 42;
+  });
+  const dragRef = useRef(false);
+  const leftPctRef = useRef(leftPct);
+  const toastId = useRef(1);
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const pushToast = useCallback((message: string, kind?: "ok" | "error") => {
+    const id = toastId.current++;
+    setToasts((prev) => [...prev, { id, message, kind }]);
+    window.setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  }, []);
 
   useEffect(() => {
     fetchBankSummary()
       .then(setBank)
       .catch((e) => setError(String(e.message || e)));
+    const saved = loadSavedSession();
+    if (saved?.session_id) {
+      getSession(saved.session_id)
+        .then((s) => {
+          if (s.status === "ready" || s.status === "provisioning") {
+            setResumeId(s.session_id);
+          } else {
+            localStorage.removeItem(SESSION_KEY);
+          }
+        })
+        .catch(() => localStorage.removeItem(SESSION_KEY));
+    }
   }, []);
 
-  // Poll while provisioning
   useEffect(() => {
     if (!session || session.status !== "provisioning") return;
     const id = window.setInterval(async () => {
@@ -48,28 +89,94 @@ export default function App() {
           setTasks(t);
           setSelectedId(t[0]?.id ?? null);
           setPhase("exam");
+          pushToast("Exam environment ready", "ok");
         }
         if (s.status === "error") {
           setError(s.error || "Provisioning failed");
           setPhase("lobby");
+          localStorage.removeItem(SESSION_KEY);
+          pushToast(s.error || "Provisioning failed", "error");
         }
       } catch (e) {
         setError(String((e as Error).message || e));
       }
     }, 2500);
     return () => window.clearInterval(id);
-  }, [session]);
+  }, [session, pushToast]);
+
+  // Wake Lock while exam ready
+  useEffect(() => {
+    const ready = session?.status === "ready" && phase === "exam";
+    if (!ready) {
+      wakeLockRef.current?.release().catch(() => undefined);
+      wakeLockRef.current = null;
+      return;
+    }
+    const request = async () => {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLockRef.current = await navigator.wakeLock.request("screen");
+        }
+      } catch {
+        /* unsupported / denied */
+      }
+    };
+    void request();
+    const onVis = () => {
+      if (document.visibilityState === "visible") void request();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      document.removeEventListener("visibilitychange", onVis);
+      wakeLockRef.current?.release().catch(() => undefined);
+      wakeLockRef.current = null;
+    };
+  }, [session?.status, phase]);
+
+  const attachSession = async (s: Session) => {
+    setSession(s);
+    localStorage.setItem(
+      SESSION_KEY,
+      JSON.stringify({ session_id: s.session_id, ends_at: s.ends_at })
+    );
+    setPhase("exam");
+    if (s.status === "ready") {
+      const t = await getSessionTasks(s.session_id);
+      setTasks(t);
+      setSelectedId(t[0]?.id ?? null);
+    }
+  };
 
   const onStart = async () => {
     setBusy(true);
     setError(null);
     setScore(null);
+    setResumeId(null);
     try {
       const s = await startSession(domainFilter || null);
-      setSession(s);
-      setPhase("exam");
+      await attachSession(s);
+      pushToast("Provisioning cluster…", "ok");
     } catch (e) {
-      setError(String((e as Error).message || e));
+      const msg = String((e as Error).message || e);
+      setError(msg);
+      pushToast(msg, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onResume = async () => {
+    if (!resumeId) return;
+    setBusy(true);
+    try {
+      const s = await getSession(resumeId);
+      await attachSession(s);
+      pushToast("Resumed exam session", "ok");
+      setResumeId(null);
+    } catch (e) {
+      localStorage.removeItem(SESSION_KEY);
+      setResumeId(null);
+      pushToast(String((e as Error).message || e), "error");
     } finally {
       setBusy(false);
     }
@@ -95,14 +202,50 @@ export default function App() {
         prev ? { ...prev, status: "done", score: report } : prev
       );
       setPhase("finished");
+      localStorage.removeItem(SESSION_KEY);
+      pushToast(`Score: ${report.score}%`, report.pass ? "ok" : "error");
     } catch (e) {
-      setError(String((e as Error).message || e));
+      const msg = String((e as Error).message || e);
+      setError(msg);
+      pushToast(msg, "error");
     } finally {
       setEnding(false);
     }
-  }, [session, ending]);
+  }, [session, ending, pushToast]);
 
   const ready = session?.status === "ready";
+
+  const onDividerDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    dragRef.current = true;
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      const pct = Math.min(70, Math.max(25, (ev.clientX / window.innerWidth) * 100));
+      leftPctRef.current = pct;
+      setLeftPct(pct);
+    };
+    const onUp = () => {
+      dragRef.current = false;
+      localStorage.setItem(PANEL_KEY, String(leftPctRef.current));
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  useEffect(() => {
+    leftPctRef.current = leftPct;
+    localStorage.setItem(PANEL_KEY, String(leftPct));
+  }, [leftPct]);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => undefined);
+    } else {
+      document.exitFullscreen?.().catch(() => undefined);
+    }
+  };
 
   return (
     <div className="app">
@@ -124,6 +267,11 @@ export default function App() {
         )}
 
         <div className="top-actions">
+          {phase === "exam" && (
+            <button type="button" className="btn" onClick={toggleFullscreen}>
+              Fullscreen
+            </button>
+          )}
           {phase === "lobby" && (
             <button
               type="button"
@@ -146,6 +294,20 @@ export default function App() {
           )}
         </div>
       </header>
+
+      <Toasts
+        toasts={toasts}
+        onDismiss={(id) => setToasts((prev) => prev.filter((t) => t.id !== id))}
+      />
+
+      {resumeId && phase === "lobby" && (
+        <div className="resume-banner">
+          <span>An exam session is still active on this browser.</span>
+          <button type="button" className="btn primary" onClick={onResume} disabled={busy}>
+            Resume
+          </button>
+        </div>
+      )}
 
       {error && <div className="banner error">{error}</div>}
 
@@ -219,7 +381,14 @@ export default function App() {
       )}
 
       {phase === "exam" && session && (
-        <main className="exam">
+        <main
+          className={ready ? "exam exam-shell" : "exam"}
+          style={
+            ready
+              ? ({ ["--exam-left" as string]: `${leftPct}%` } as React.CSSProperties)
+              : undefined
+          }
+        >
           {session.status === "provisioning" && (
             <div className="provisioning">
               <div className="spinner" />
@@ -237,7 +406,17 @@ export default function App() {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
               />
-              <Workspace sessionId={session.session_id} active={ready} />
+              <div
+                className="exam-divider"
+                onMouseDown={onDividerDown}
+                role="separator"
+                aria-orientation="vertical"
+              />
+              <Workspace
+                sessionId={session.session_id}
+                active={ready}
+                desktopUrl={session.desktop_url ?? null}
+              />
             </>
           )}
           {session.status === "grading" && (
@@ -255,8 +434,8 @@ export default function App() {
             <section className="lobby-hero">
               <h1>Exam complete</h1>
               <p>
-                Your cluster has been torn down. Review your score, then start
-                another attempt when ready.
+                Your cluster has been torn down. Review your score and answers,
+                then start another attempt when ready.
               </p>
               <button
                 type="button"
@@ -272,13 +451,7 @@ export default function App() {
               </button>
             </section>
           </main>
-          <ScoreReport
-            score={score}
-            onClose={() => {
-              /* keep modal until they leave via lobby button; allow dismiss */
-              setScore(null);
-            }}
-          />
+          <ScoreReport score={score} onClose={() => setScore(null)} />
         </>
       )}
     </div>

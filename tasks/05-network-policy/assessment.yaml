@@ -1,0 +1,9 @@
+checks:
+  - id: select
+    description: Selects secure-db and Ingress type
+    weight: 40
+    script: checks/select.sh
+  - id: rule
+    description: Allows frontend on TCP 5432
+    weight: 60
+    script: checks/rule.sh

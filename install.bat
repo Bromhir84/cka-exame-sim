@@ -22,10 +22,16 @@ if errorlevel 1 (
   exit /b 1
 )
 
-echo [1/3] Building and starting containers...
-docker compose up --build -d
+echo [1/3] Building images (backend, frontend, exam desktop)...
+docker compose build
 if errorlevel 1 (
-  echo [ERROR] docker compose failed.
+  echo [ERROR] docker compose build failed.
+  exit /b 1
+)
+echo Starting containers...
+docker compose up -d
+if errorlevel 1 (
+  echo [ERROR] docker compose up failed.
   exit /b 1
 )
 

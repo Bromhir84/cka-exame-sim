@@ -1,0 +1,9 @@
+checks:
+  - id: ports
+    description: http+metrics ports
+    weight: 70
+    script: checks/ports.sh
+  - id: type
+    description: ClusterIP
+    weight: 30
+    script: checks/type.sh

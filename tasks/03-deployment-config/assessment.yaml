@@ -1,0 +1,13 @@
+checks:
+  - id: cm-secret
+    description: ConfigMap and Secret correct
+    weight: 30
+    script: checks/cm-secret.sh
+  - id: deploy-spec
+    description: Deployment replicas/image/env/resources
+    weight: 40
+    script: checks/deploy-spec.sh
+  - id: ready
+    description: Deployment Ready with 3 replicas
+    weight: 30
+    script: checks/ready.sh

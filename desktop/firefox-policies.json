@@ -1,0 +1,46 @@
+{
+  "policies": {
+    "OverrideFirstRunPage": "",
+    "OverridePostUpdatePage": "",
+    "DontCheckDefaultBrowser": true,
+    "DisableTelemetry": true,
+    "DisableFirefoxAccounts": true,
+    "DisablePocket": true,
+    "NoDefaultBookmarks": true,
+    "Homepage": {
+      "URL": "https://docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed",
+      "StartPage": "homepage",
+      "Locked": false
+    },
+    "Bookmarks": [
+      {
+        "Title": "Kubernetes Docs",
+        "URL": "https://kubernetes.io/docs/home/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "kubectl Cheat Sheet",
+        "URL": "https://kubernetes.io/docs/reference/kubectl/quick-reference/",
+        "Placement": "toolbar"
+      },
+      {
+        "Title": "Allowed exam resources",
+        "URL": "https://docs.linuxfoundation.org/tc-docs/certification/certification-resources-allowed",
+        "Placement": "toolbar"
+      }
+    ],
+    "WebsiteFilter": {
+      "Block": ["<all_urls>"],
+      "Exceptions": [
+        "https://kubernetes.io/*",
+        "https://*.kubernetes.io/*",
+        "https://github.com/kubernetes/*",
+        "https://github.com/kubernetes-sigs/*",
+        "https://raw.githubusercontent.com/kubernetes/*",
+        "https://raw.githubusercontent.com/kubernetes-sigs/*",
+        "https://docs.linuxfoundation.org/*",
+        "https://*.linuxfoundation.org/*"
+      ]
+    }
+  }
+}

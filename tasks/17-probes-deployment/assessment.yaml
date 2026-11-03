@@ -1,0 +1,9 @@
+checks:
+  - id: spec
+    description: Replicas + probes
+    weight: 50
+    script: checks/spec.sh
+  - id: ready
+    description: Ready
+    weight: 50
+    script: checks/ready.sh

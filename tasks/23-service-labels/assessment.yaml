@@ -1,0 +1,9 @@
+checks:
+  - id: sel
+    description: Both selector labels
+    weight: 70
+    script: checks/sel.sh
+  - id: port
+    description: Port 80
+    weight: 30
+    script: checks/port.sh

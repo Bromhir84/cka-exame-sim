@@ -1,0 +1,9 @@
+checks:
+  - id: resources
+    description: Requests and limits
+    weight: 60
+    script: checks/resources.sh
+  - id: ready
+    description: Ready
+    weight: 40
+    script: checks/ready.sh

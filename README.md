@@ -27,18 +27,24 @@ You can also choose a **single domain** in the lobby to practice every question 
 
 Requires [Docker Desktop](https://www.docker.com/products/docker-desktop/) (or Docker Engine) running, and `git` on PATH.
 
-### One-command install (clone + start)
+### One-command install (clone/update + start)
 
 **Windows (PowerShell):**
 
 ```powershell
-git clone https://github.com/Bromhir84/cka-exame-sim.git; Set-Location cka-exame-sim; .\install.bat
+irm https://raw.githubusercontent.com/Bromhir84/cka-exame-sim/main/scripts/install.ps1 | iex
 ```
 
 **macOS / Linux:**
 
 ```bash
-git clone https://github.com/Bromhir84/cka-exame-sim.git && cd cka-exame-sim && docker compose up --build -d && open http://localhost:5173 2>/dev/null || xdg-open http://localhost:5173 2>/dev/null || true
+curl -fsSL https://raw.githubusercontent.com/Bromhir84/cka-exame-sim/main/scripts/install.sh | bash
+```
+
+Or clone manually:
+
+```powershell
+git clone https://github.com/Bromhir84/cka-exame-sim.git; Set-Location cka-exame-sim; .\install.bat
 ```
 
 ### Already cloned
@@ -64,8 +70,11 @@ The exam workspace includes:
 
 - **Terminal** — interactive bash with `kubectl` (and `k` alias) plus **Tab completion**
 - **Docs** — allowlisted browser for exam-style resources only (`kubernetes.io` docs/blog and `github.com/kubernetes*`)
+- **Desktop** — optional noVNC remote desktop (XFCE + allowlisted Firefox) for exam-style realism
 
-Only one exam session can run at a time. Ending the exam tears down the kind cluster.
+Grading uses multi-step checks with partial credit; after you end the exam, solutions (`answers.md`) appear in the score report.
+
+Only one exam session can run at a time. Ending the exam tears down the kind cluster and desktop container.
 
 ## Development (without Compose UI)
 
@@ -89,7 +98,13 @@ python scripts/validate-tasks.py
 
 ## Project layout
 
-- `backend/` — FastAPI session API, WebSocket PTY, grader
+- `backend/` — FastAPI session API, WebSocket PTY, grader, desktop lifecycle
 - `frontend/` — React + Vite + xterm.js exam UI
+- `desktop/` — XFCE + TigerVNC + noVNC + kubectl + allowlisted Firefox image
 - `tasks/` — 32-task bank + `catalog.yaml` slots for domain-balanced draws
+- `scripts/install.sh` / `scripts/install.ps1` — one-line installers
 - `install.bat` — Windows one-click start
+
+## License / attribution
+
+This project is independent practice software. Remote-desktop exam UX ideas were inspired by public descriptions of [CK-X](https://github.com/sailor-sh/CK-X); **no CK-X source code is vendored** (CK-X is BSL-licensed).

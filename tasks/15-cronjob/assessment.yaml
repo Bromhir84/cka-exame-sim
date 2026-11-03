@@ -1,0 +1,9 @@
+checks:
+  - id: sched
+    description: Schedule + concurrency
+    weight: 50
+    script: checks/sched.sh
+  - id: image
+    description: Container image
+    weight: 50
+    script: checks/image.sh

@@ -1,0 +1,13 @@
+checks:
+  - id: sa
+    description: SA exists
+    weight: 25
+    script: checks/sa.sh
+  - id: role
+    description: Role on secrets
+    weight: 40
+    script: checks/role.sh
+  - id: rb
+    description: RoleBinding
+    weight: 35
+    script: checks/rb.sh

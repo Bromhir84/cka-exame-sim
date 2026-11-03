@@ -1,0 +1,13 @@
+checks:
+  - id: cr
+    description: ClusterRole node-viewer
+    weight: 40
+    script: checks/cr.sh
+  - id: sa
+    description: SA in arch-crb
+    weight: 20
+    script: checks/sa.sh
+  - id: crb
+    description: ClusterRoleBinding
+    weight: 40
+    script: checks/crb.sh

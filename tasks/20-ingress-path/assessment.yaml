@@ -1,0 +1,9 @@
+checks:
+  - id: host
+    description: Host + path
+    weight: 50
+    script: checks/host.sh
+  - id: backend
+    description: Backend + class
+    weight: 50
+    script: checks/backend.sh

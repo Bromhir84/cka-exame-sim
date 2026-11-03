@@ -1,0 +1,13 @@
+checks:
+  - id: sa
+    description: SA
+    weight: 25
+    script: checks/sa.sh
+  - id: role
+    description: Role batch jobs
+    weight: 45
+    script: checks/role.sh
+  - id: rb
+    description: RoleBinding
+    weight: 30
+    script: checks/rb.sh

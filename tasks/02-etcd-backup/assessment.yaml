@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: Snapshot file exists and is large enough
+    weight: 60
+    script: checks/exists.sh
+  - id: valid
+    description: Snapshot status check if etcdctl present
+    weight: 40
+    script: checks/valid.sh

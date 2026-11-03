@@ -1,0 +1,9 @@
+checks:
+  - id: path
+    description: Probe path /
+    weight: 40
+    script: checks/path.sh
+  - id: ready
+    description: 2 Ready
+    weight: 60
+    script: checks/ready.sh

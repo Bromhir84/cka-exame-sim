@@ -1,0 +1,9 @@
+checks:
+  - id: pvc
+    description: PVC size/mode/class
+    weight: 40
+    script: checks/pvc.sh
+  - id: pod
+    description: Pod mounts PVC and Ready/Bound
+    weight: 60
+    script: checks/pod.sh

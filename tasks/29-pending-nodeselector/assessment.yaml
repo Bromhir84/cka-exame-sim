@@ -1,0 +1,9 @@
+checks:
+  - id: image
+    description: nginx image kept
+    weight: 30
+    script: checks/image.sh
+  - id: ready
+    description: Pod Ready
+    weight: 70
+    script: checks/ready.sh

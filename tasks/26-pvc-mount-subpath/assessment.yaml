@@ -1,0 +1,9 @@
+checks:
+  - id: subpath
+    description: subPath cache at /work
+    weight: 50
+    script: checks/subpath.sh
+  - id: bound
+    description: PVC Bound
+    weight: 50
+    script: checks/bound.sh

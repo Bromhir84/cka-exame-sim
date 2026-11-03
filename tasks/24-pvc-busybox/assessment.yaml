@@ -1,0 +1,9 @@
+checks:
+  - id: pvc
+    description: PVC fields
+    weight: 40
+    script: checks/pvc.sh
+  - id: pod
+    description: Pod Ready Bound
+    weight: 60
+    script: checks/pod.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: image
+    description: Image fixed to nginx:1.27
+    weight: 40
+    script: checks/image.sh
+  - id: ready
+    description: 2 Ready replicas
+    weight: 60
+    script: checks/ready.sh

@@ -1,0 +1,13 @@
+checks:
+  - id: sa
+    description: ServiceAccount exists
+    weight: 30
+    script: checks/sa.sh
+  - id: role
+    description: Role has pods/deployments verbs
+    weight: 40
+    script: checks/role.sh
+  - id: binding
+    description: RoleBinding links SA to Role
+    weight: 30
+    script: checks/binding.sh

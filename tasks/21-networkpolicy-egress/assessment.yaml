@@ -1,0 +1,9 @@
+checks:
+  - id: select
+    description: Selects client + Egress
+    weight: 40
+    script: checks/select.sh
+  - id: to
+    description: To api:8080
+    weight: 60
+    script: checks/to.sh

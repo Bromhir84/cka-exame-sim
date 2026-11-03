@@ -1,0 +1,9 @@
+checks:
+  - id: target
+    description: targetPort 8080
+    weight: 60
+    script: checks/target.sh
+  - id: port-sel
+    description: port 80 + selector
+    weight: 40
+    script: checks/port-sel.sh

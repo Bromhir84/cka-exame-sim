@@ -1,0 +1,9 @@
+checks:
+  - id: cm
+    description: ConfigMap mode=online
+    weight: 40
+    script: checks/cm.sh
+  - id: ready
+    description: Deploy Ready
+    weight: 60
+    script: checks/ready.sh

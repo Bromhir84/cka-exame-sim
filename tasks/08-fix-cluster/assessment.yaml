@@ -1,0 +1,9 @@
+checks:
+  - id: corefile
+    description: Corefile restored (has forward, no notaplugin)
+    weight: 50
+    script: checks/corefile.sh
+  - id: ready
+    description: coredns Deployment Ready
+    weight: 50
+    script: checks/ready.sh

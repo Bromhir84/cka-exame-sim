@@ -1,0 +1,9 @@
+checks:
+  - id: image
+    description: busybox image
+    weight: 30
+    script: checks/image.sh
+  - id: ready
+    description: Ready
+    weight: 70
+    script: checks/ready.sh

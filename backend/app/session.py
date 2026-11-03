@@ -11,6 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
+from .desktop import start_desktop, stop_desktop
 from .grader import grade_tasks, run_setup
 from .tasks_loader import Task, select_exam_tasks
 
@@ -36,6 +37,7 @@ class ExamSession:
     score: dict | None = None
     tasks: list[Task] = field(default_factory=list)
     domain: str | None = None  # None = full multi-domain exam
+    desktop_url: str | None = None
 
 
 _sessions: dict[str, ExamSession] = {}
@@ -273,6 +275,14 @@ async def _provision(session: ExamSession) -> None:
         for task in session.tasks:
             await run_setup(task, session.kubeconfig, session.cluster_name)
 
+        # Optional noVNC desktop (best-effort; exam works without it)
+        try:
+            session.desktop_url = await start_desktop(
+                session.id, session.kubeconfig, session.cluster_name
+            )
+        except Exception:  # noqa: BLE001
+            session.desktop_url = None
+
         session.ends_at = datetime.now(timezone.utc) + timedelta(
             minutes=EXAM_DURATION_MINUTES
         )
@@ -280,6 +290,7 @@ async def _provision(session: ExamSession) -> None:
     except Exception as exc:  # noqa: BLE001
         session.status = SessionStatus.ERROR
         session.error = str(exc)
+        await stop_desktop(session.id)
         await _destroy_cluster(session.cluster_name)
 
 
@@ -345,6 +356,8 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
     session = get_session(session_id)
     if not session:
         return
+    await stop_desktop(session_id)
+    session.desktop_url = None
     await _destroy_cluster(session.cluster_name)
     if session.workdir.exists():
         shutil.rmtree(session.workdir, ignore_errors=True)
@@ -368,4 +381,5 @@ def session_public(session: ExamSession) -> dict:
         "score": session.score,
         "task_ids": [t.id for t in session.tasks],
         "domain": session.domain,
+        "desktop_url": session.desktop_url,
     }
