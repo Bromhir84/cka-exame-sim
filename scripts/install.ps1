@@ -1,6 +1,12 @@
 # One-line install (Windows):
 #   irm https://raw.githubusercontent.com/Bromhir84/cka-exame-sim/main/scripts/install.ps1 | iex
 $ErrorActionPreference = "Stop"
+# PowerShell 7+ can treat native stderr as errors; git writes progress there.
+$prevNative = $null
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+  $prevNative = $PSNativeCommandUseErrorActionPreference
+  $PSNativeCommandUseErrorActionPreference = $false
+}
 
 $RepoUrl = if ($env:REPO_URL) { $env:REPO_URL } else { "https://github.com/Bromhir84/cka-exame-sim.git" }
 $DirName = if ($env:DIR_NAME) { $env:DIR_NAME } else { "cka-exame-sim" }
@@ -10,39 +16,69 @@ Write-Host "==> CKA Exam Simulator installer" -ForegroundColor Cyan
 
 function Test-Cmd($Name) { return [bool](Get-Command $Name -ErrorAction SilentlyContinue) }
 
+# Run a native command; ignore stderr noise; return exit code.
+function Invoke-Native {
+  param([Parameter(Mandatory)][scriptblock]$Command)
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    & $Command 2>&1 | Out-Null
+    return $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $prev
+  }
+}
+
+function Get-NativeText {
+  param([Parameter(Mandatory)][scriptblock]$Command)
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $out = & $Command 2>$null
+    if ($LASTEXITCODE -ne 0) { return $null }
+    return (($out | Out-String).Trim())
+  } finally {
+    $ErrorActionPreference = $prev
+  }
+}
+
 if (-not (Test-Cmd git)) { throw "git is required on PATH" }
 if (-not (Test-Cmd docker)) { throw "Docker is required (install Docker Desktop)" }
 
-docker info 1>$null 2>$null
-if ($LASTEXITCODE -ne 0) { throw "Docker is installed but not running. Start Docker Desktop and retry." }
+if ((Invoke-Native { docker info }) -ne 0) {
+  throw "Docker is installed but not running. Start Docker Desktop and retry."
+}
 
 if (Test-Path (Join-Path $Target ".git")) {
   Write-Host "==> Checking for updates at $Target"
   Push-Location $Target
-  $branch = (git rev-parse --abbrev-ref HEAD).Trim()
-  if (-not $branch) { $branch = "main" }
-  git fetch origin $branch 2>$null
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "    Could not reach origin — continuing with local copy." -ForegroundColor Yellow
-  } else {
-    $local = (git rev-parse HEAD).Trim()
-    $remote = (git rev-parse "origin/$branch").Trim()
-    if ($local -ne $remote) {
-      Write-Host "    Update available — pulling origin/$branch..."
-      git pull --ff-only origin $branch
-      if ($LASTEXITCODE -ne 0) {
-        Write-Host "    [WARN] git pull failed; continuing with local copy." -ForegroundColor Yellow
-      } else {
-        Write-Host "    Updated successfully." -ForegroundColor Green
-      }
+  try {
+    $branch = Get-NativeText { git rev-parse --abbrev-ref HEAD }
+    if (-not $branch) { $branch = "main" }
+    if ((Invoke-Native { git fetch origin $branch }) -ne 0) {
+      Write-Host "    Could not reach origin — continuing with local copy." -ForegroundColor Yellow
     } else {
-      Write-Host "    Already up to date."
+      $local = Get-NativeText { git rev-parse HEAD }
+      $remote = Get-NativeText { git rev-parse "origin/$branch" }
+      if ($local -and $remote -and $local -ne $remote) {
+        Write-Host "    Update available — pulling origin/$branch..."
+        if ((Invoke-Native { git pull --ff-only origin $branch }) -ne 0) {
+          Write-Host "    [WARN] git pull failed; continuing with local copy." -ForegroundColor Yellow
+        } else {
+          Write-Host "    Updated successfully." -ForegroundColor Green
+        }
+      } else {
+        Write-Host "    Already up to date."
+      }
     }
+  } finally {
+    Pop-Location
   }
-  Pop-Location
 } else {
   Write-Host "==> Cloning into $Target"
-  git clone $RepoUrl $Target
+  if ((Invoke-Native { git clone $RepoUrl $Target }) -ne 0) {
+    throw "git clone failed"
+  }
 }
 
 Set-Location $Target
@@ -60,3 +96,7 @@ Write-Host "  API: http://localhost:8000"
 Write-Host "First Start Exam can take several minutes (kind + networking + optional desktop)."
 Write-Host "Stop with:  docker compose down"
 Start-Process "http://localhost:5173"
+
+if ($null -ne $prevNative) {
+  $PSNativeCommandUseErrorActionPreference = $prevNative
+}
