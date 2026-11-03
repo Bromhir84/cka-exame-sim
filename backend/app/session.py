@@ -433,7 +433,11 @@ async def _provision_task_cluster(session: ExamSession, task: Task) -> None:
     session.kubeconfig = _kubeconfig_for(session, task.id)
     session.active_task_id = task.id
 
-    await _warm_task_cluster(session, task, on_progress=_set_progress)
+    await _warm_task_cluster(
+        session,
+        task,
+        on_progress=lambda step, label: _set_progress(session, step, label),
+    )
     _bind_active_cluster(session, task.id)
 
     _set_progress(session, 7, "Starting remote desktop…")
