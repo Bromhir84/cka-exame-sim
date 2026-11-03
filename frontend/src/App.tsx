@@ -570,6 +570,7 @@ export default function App() {
                   sessionId={session.session_id}
                   active={ready}
                   desktopUrl={session.desktop_url ?? null}
+                  desktopError={session.desktop_error ?? null}
                 />
               ) : (
                 <div className="workspace workspace-empty">

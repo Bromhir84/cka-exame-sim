@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
-from .desktop import start_desktop, stop_desktop
+from .desktop import get_desktop_error, start_desktop, stop_desktop
 from .grader import assemble_score, grade_task, run_setup
 from .tasks_loader import Task, select_exam_tasks
 
@@ -51,6 +51,7 @@ class ExamSession:
     tasks: list[Task] = field(default_factory=list)
     domain: str | None = None  # None = full multi-domain exam
     desktop_url: str | None = None
+    desktop_error: str | None = None
     progress_step: int = 0
     progress_total: int = PROVISION_STEPS
     progress_label: str = "Queued…"
@@ -349,8 +350,12 @@ async def _start_session_desktop(session: ExamSession) -> None:
         session.desktop_url = await start_desktop(
             session.id, session.kubeconfig, session.cluster_name
         )
-    except Exception:  # noqa: BLE001
+        session.desktop_error = (
+            None if session.desktop_url else get_desktop_error(session.id)
+        )
+    except Exception as exc:  # noqa: BLE001
         session.desktop_url = None
+        session.desktop_error = str(exc)
 
 
 async def _warm_task_cluster(
@@ -666,6 +671,7 @@ async def _switch_task(session_id: str, task_id: str) -> None:
             session.progress_label = "Parking current question cluster…"
             await stop_desktop(session.id)
             session.desktop_url = None
+            session.desktop_error = None
             if leaving_id and leaving_id in session.task_clusters:
                 leaving = session.task_clusters[leaving_id]
                 await _set_cluster_paused(leaving.cluster_name, True)
@@ -968,6 +974,7 @@ def session_public(session: ExamSession) -> dict:
         "task_ids": [t.id for t in session.tasks],
         "domain": session.domain,
         "desktop_url": session.desktop_url,
+        "desktop_error": session.desktop_error,
         "active_task_id": session.active_task_id,
         "opened_task_ids": sorted(session.task_clusters.keys()),
         # IDs only — scores stay hidden until End Exam (status=done)

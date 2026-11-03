@@ -44,6 +44,7 @@ ALLOWED_ASSET_HOSTS = {
     "fonts.googleapis.com",
     "fonts.gstatic.com",
     "code.jquery.com",
+    "unpkg.com",
     # GitHub asset CDNs appear on some doc sites / quick-ref targets
     "avatars.githubusercontent.com",
     "camo.githubusercontent.com",
@@ -114,7 +115,9 @@ BOOKMARKS = [
     },
     {
         "title": "Gateway API (CKA)",
-        "url": "https://gateway-api.sigs.k8s.io/",
+        # Site root meta-refreshes to /docs/; open docs directly so the iframe
+        # does not navigate to a bare /docs/ path on the exam UI origin.
+        "url": "https://gateway-api.sigs.k8s.io/docs/",
     },
 ]
 
@@ -472,15 +475,42 @@ def _is_navigational_tag(tag) -> bool:
     return False
 
 
+def _meta_refresh_target(html: str, base_url: str) -> str | None:
+    """Return absolute URL from <meta http-equiv=refresh content='0;url=...'> if any."""
+    patterns = (
+        r'<meta[^>]+http-equiv=["\']?refresh["\']?[^>]*content=["\']?\s*\d+\s*;\s*url=([^"\'>\s]+)',
+        r'<meta[^>]+content=["\']?\s*\d+\s*;\s*url=([^"\'>\s]+)[^>]*http-equiv=["\']?refresh',
+    )
+    for pat in patterns:
+        match = re.search(pat, html, flags=re.I)
+        if match:
+            return urljoin(base_url, match.group(1).strip().strip("'\""))
+    return None
+
+
 def _rewrite_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
-    # Remove frame-busting / CSP meta (also strip SRI on proxied assets — body is
-    # unchanged, but some browsers are picky when the request URL changes).
+    # Remove frame-busting / CSP meta; rewrite refresh so it stays inside the proxy
+    # (site-relative /docs/ would otherwise leave the proxied iframe).
     for tag in soup.find_all("meta"):
         http_equiv = (tag.get("http-equiv") or "").lower()
         if http_equiv in {"content-security-policy", "x-frame-options"}:
             tag.decompose()
+            continue
+        if http_equiv == "refresh":
+            content = tag.get("content") or ""
+            match = re.search(r"url=(.+)", content, flags=re.I)
+            if not match:
+                continue
+            raw = match.group(1).strip().strip("'\"")
+            absolute = urljoin(base_url, raw)
+            if is_allowed(absolute) or is_allowed_asset(absolute):
+                delay_match = re.match(r"\s*(\d+)\s*;", content)
+                delay = delay_match.group(1) if delay_match else "0"
+                tag["content"] = f"{delay};url={proxy_url_for(absolute)}"
+            else:
+                tag.decompose()
 
     for tag in soup.find_all(["a", "link", "script", "img", "iframe", "form", "source"]):
         # Integrity checks break once we rewrite URLs through our proxy.
@@ -589,6 +619,43 @@ async def docs_proxy(url: str = Query(..., min_length=8)):
             text = body.decode(upstream.charset_encoding or "utf-8", errors="replace")
         except LookupError:
             text = body.decode("utf-8", errors="replace")
+
+        # Follow HTML meta-refresh inside the allowlist (e.g. gateway-api root → /docs/)
+        # so the iframe never navigates to a site-relative /docs/ on the exam UI origin.
+        for _ in range(3):
+            refresh_to = _meta_refresh_target(text, final_url)
+            if not refresh_to or not is_allowed(refresh_to):
+                break
+            if refresh_to.rstrip("/") == final_url.rstrip("/"):
+                break
+            try:
+                async with httpx.AsyncClient(
+                    follow_redirects=True,
+                    timeout=30.0,
+                    headers={
+                        "User-Agent": (
+                            "Mozilla/5.0 (compatible; CKA-Exam-Simulator-DocsBrowser/1.0)"
+                        ),
+                        "Accept": "*/*",
+                    },
+                ) as client:
+                    upstream = await client.get(refresh_to)
+            except httpx.HTTPError:
+                break
+            final_url = str(upstream.url)
+            if not (is_allowed(final_url) or is_allowed_asset(final_url)):
+                return blocked_response(
+                    final_url,
+                    "A redirect left the exam allowlist, so this page was blocked.",
+                )
+            body = upstream.content
+            try:
+                text = body.decode(
+                    upstream.charset_encoding or "utf-8", errors="replace"
+                )
+            except LookupError:
+                text = body.decode("utf-8", errors="replace")
+
         text = _rewrite_html(text, final_url)
         text = re.sub(
             r'<meta[^>]+http-equiv=["\']?content-security-policy["\']?[^>]*>',

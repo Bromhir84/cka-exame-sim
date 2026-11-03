@@ -813,11 +813,21 @@ body {
   padding: 1.5rem;
   color: var(--muted);
   font-size: 0.95rem;
+  line-height: 1.5;
 }
 
-.workspace-tabs button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.desktop-error {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #2a1518;
+  border: 1px solid #5c2a32;
+  border-radius: 0.4rem;
+  color: #ffc9cf;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 14rem;
+  overflow: auto;
 }
 
 .exam-divider {

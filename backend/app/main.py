@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, WebSocket
+from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .config import CORS_ORIGINS, SESSIONS_DIR
+from .desktop import proxy_desktop_http, proxy_desktop_websockify
 from .session import (
     activate_task,
     create_session,
@@ -147,6 +148,38 @@ async def finish_session(session_id: str):
 async def delete_session(session_id: str):
     await destroy_session(session_id)
     return {"ok": True}
+
+
+@app.api_route(
+    "/api/sessions/{session_id}/desktop",
+    methods=["GET", "HEAD"],
+)
+@app.api_route(
+    "/api/sessions/{session_id}/desktop/{path:path}",
+    methods=["GET", "HEAD", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+)
+async def desktop_http_proxy(
+    session_id: str, request: Request, path: str = ""
+):
+    """Same-origin reverse proxy into the session's noVNC container."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    if not session.desktop_url:
+        raise HTTPException(
+            status_code=503,
+            detail=session.desktop_error or "desktop not available",
+        )
+    return await proxy_desktop_http(session_id, path, request)
+
+
+@app.websocket("/api/sessions/{session_id}/desktop/websockify")
+async def desktop_ws_proxy(websocket: WebSocket, session_id: str):
+    session = get_session(session_id)
+    if not session or not session.desktop_url:
+        await websocket.close(code=1008)
+        return
+    await proxy_desktop_websockify(websocket, session_id)
 
 
 @app.websocket("/ws/terminal/{session_id}")

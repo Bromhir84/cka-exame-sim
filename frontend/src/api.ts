@@ -45,6 +45,7 @@ export type Session = {
   task_ids?: string[];
   domain?: string | null;
   desktop_url?: string | null;
+  desktop_error?: string | null;
   progress?: SessionProgress | null;
   active_task_id?: string | null;
   opened_task_ids?: string[];
