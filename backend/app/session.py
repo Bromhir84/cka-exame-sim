@@ -352,6 +352,14 @@ async def create_session(domain: str | None = None) -> ExamSession:
     return session
 
 
+async def _cleanup_after_exam(session_id: str) -> None:
+    """Tear down desktop + kind cluster without blocking the grade response."""
+    try:
+        await destroy_session(session_id, delete_record=False)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 async def end_session(session_id: str, cleanup: bool = True) -> dict:
     session = get_session(session_id)
     if not session:
@@ -362,6 +370,8 @@ async def end_session(session_id: str, cleanup: bool = True) -> dict:
         raise RuntimeError("session still provisioning")
     if session.status == SessionStatus.ERROR:
         raise RuntimeError(session.error or "session failed")
+    if session.status == SessionStatus.GRADING:
+        raise RuntimeError("session is already grading")
 
     session.status = SessionStatus.GRADING
     try:
@@ -369,9 +379,15 @@ async def end_session(session_id: str, cleanup: bool = True) -> dict:
         session.score = score
         session.status = SessionStatus.DONE
         return score
+    except Exception:
+        # Leave status as grading/error path — restore READY so user can retry end
+        if session.status == SessionStatus.GRADING:
+            session.status = SessionStatus.READY
+        raise
     finally:
-        if cleanup:
-            await destroy_session(session_id, delete_record=False)
+        # Always schedule cleanup after a successful grade; on failure only if requested
+        if cleanup and session.status == SessionStatus.DONE:
+            asyncio.create_task(_cleanup_after_exam(session_id))
 
 
 async def destroy_session(session_id: str, delete_record: bool = True) -> None:
