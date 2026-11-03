@@ -16,12 +16,14 @@ Pass hint: **66%** (same as the real exam).
 
 Each **full exam** randomly draws **16 questions** from a **56-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
 
+Each question runs on its **own kind cluster**. Use **Previous / Next** to move between questions — leaving a question parks its cluster (your work is preserved); returning reconnects. A question is provisioned the first time you open it. **Finish question** grades that item quietly, removes its cluster (frees RAM), and keeps the result hidden until **End Exam**, which grades any remaining open clusters and shows the full score report.
+
 You can also choose a **single domain** in the lobby to practice every question in that domain (weights equalized to 100%).
 
 ## Prerequisites
 
 - Docker Engine or Docker Desktop
-- ~8 GB free RAM (kind cluster + Calico + ingress)
+- ~8 GB free RAM for the first question cluster; each additional opened question keeps another kind cluster (RAM adds up if you open many)
 
 ## Quick start
 
@@ -77,7 +79,7 @@ The exam workspace includes:
 
 Grading uses multi-step checks with partial credit; after you end the exam, solutions (`answers.md`) appear in the score report.
 
-Only one exam session can run at a time. Ending the exam tears down the kind cluster and desktop container.
+Only one exam session can run at a time. Ending the exam tears down all question clusters and the desktop container.
 
 ## Development (without Compose UI)
 

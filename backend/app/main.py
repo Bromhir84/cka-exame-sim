@@ -8,8 +8,10 @@ from pydantic import BaseModel, Field
 
 from .config import CORS_ORIGINS, SESSIONS_DIR
 from .session import (
+    activate_task,
     create_session,
     destroy_session,
+    finish_task,
     get_session,
     session_public,
     start_end_session,
@@ -88,6 +90,44 @@ async def get_session_tasks(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="session not found")
     return {"tasks": [t.to_public_dict() for t in session.tasks]}
+
+
+class ActivateTaskBody(BaseModel):
+    task_id: str
+
+
+@app.post("/api/sessions/{session_id}/activate")
+async def activate_session_task(session_id: str, body: ActivateTaskBody):
+    """Switch to another question (park current cluster, open target)."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    try:
+        session = await activate_task(session_id, body.task_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"unknown task: {exc}") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return session_public(session)
+
+
+@app.post("/api/sessions/{session_id}/finish-task")
+async def finish_session_task(session_id: str, body: ActivateTaskBody):
+    """Grade one question quietly, save result, destroy its cluster."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    try:
+        session = await finish_task(session_id, body.task_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"unknown task: {exc}") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return session_public(session)
 
 
 @app.post("/api/sessions/{session_id}/end")

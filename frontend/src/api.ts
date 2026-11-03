@@ -29,7 +29,13 @@ export type SessionProgress = {
 
 export type Session = {
   session_id: string;
-  status: "provisioning" | "ready" | "grading" | "done" | "error";
+  status:
+    | "provisioning"
+    | "switching"
+    | "ready"
+    | "grading"
+    | "done"
+    | "error";
   cluster_name: string;
   created_at: string;
   ends_at: string | null;
@@ -40,6 +46,10 @@ export type Session = {
   domain?: string | null;
   desktop_url?: string | null;
   progress?: SessionProgress | null;
+  active_task_id?: string | null;
+  opened_task_ids?: string[];
+  /** Graded + cluster removed; scores hidden until End Exam */
+  finished_task_ids?: string[];
 };
 
 export type CheckResult = {
@@ -105,6 +115,32 @@ export async function getSessionTasks(id: string): Promise<Task[]> {
     await fetch(`/api/sessions/${id}/tasks`)
   );
   return data.tasks;
+}
+
+export async function activateSessionTask(
+  sessionId: string,
+  taskId: string
+): Promise<Session> {
+  return json<Session>(
+    await fetch(`/api/sessions/${sessionId}/activate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId }),
+    })
+  );
+}
+
+export async function finishSessionTask(
+  sessionId: string,
+  taskId: string
+): Promise<Session> {
+  return json<Session>(
+    await fetch(`/api/sessions/${sessionId}/finish-task`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ task_id: taskId }),
+    })
+  );
 }
 
 export async function startEndSession(id: string): Promise<Session> {

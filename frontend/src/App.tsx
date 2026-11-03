@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  activateSessionTask,
   endSession,
   fetchBankSummary,
+  finishSessionTask,
   getSession,
   getSessionTasks,
   startSession,
@@ -88,7 +90,11 @@ export default function App() {
     if (saved?.session_id) {
       getSession(saved.session_id)
         .then((s) => {
-          if (s.status === "ready" || s.status === "provisioning") {
+          if (
+            s.status === "ready" ||
+            s.status === "provisioning" ||
+            s.status === "switching"
+          ) {
             setResumeId(s.session_id);
           } else {
             localStorage.removeItem(SESSION_KEY);
@@ -102,7 +108,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!session || session.status !== "provisioning") return;
+    if (
+      !session ||
+      (session.status !== "provisioning" && session.status !== "switching")
+    ) {
+      return;
+    }
     const id = window.setInterval(async () => {
       try {
         const s = await getSession(session.session_id);
@@ -110,9 +121,19 @@ export default function App() {
         if (s.status === "ready") {
           const t = await getSessionTasks(s.session_id);
           setTasks(t);
-          setSelectedId(t[0]?.id ?? null);
+          setSelectedId(s.active_task_id ?? selectedId ?? t[0]?.id ?? null);
           setPhase("exam");
-          pushToast("Exam environment ready", "ok");
+          const finishing = (session.progress?.label || "")
+            .toLowerCase()
+            .includes("finish");
+          pushToast(
+            finishing
+              ? "Question finished"
+              : session.status === "switching"
+                ? "Question cluster ready"
+                : "Exam environment ready",
+            "ok"
+          );
         }
         if (s.status === "error") {
           setError(s.error || "Provisioning failed");
@@ -123,7 +144,7 @@ export default function App() {
       } catch (e) {
         setError(String((e as Error).message || e));
       }
-    }, 2500);
+    }, 2000);
     return () => window.clearInterval(id);
   }, [session, pushToast]);
 
@@ -163,10 +184,57 @@ export default function App() {
       JSON.stringify({ session_id: s.session_id, ends_at: s.ends_at })
     );
     setPhase("exam");
-    if (s.status === "ready") {
+    if (s.status === "ready" || s.status === "switching") {
       const t = await getSessionTasks(s.session_id);
       setTasks(t);
-      setSelectedId(t[0]?.id ?? null);
+      setSelectedId(s.active_task_id ?? t[0]?.id ?? null);
+    }
+  };
+
+  const onSelectTask = async (taskId: string) => {
+    if (!session || taskId === selectedId) return;
+    if (session.status !== "ready") return;
+    setError(null);
+    // Finished questions: view prompt only (no cluster to open)
+    if ((session.finished_task_ids ?? []).includes(taskId)) {
+      setSelectedId(taskId);
+      return;
+    }
+    setSelectedId(taskId);
+    try {
+      // Returns immediately; poll effect watches status=switching → ready
+      const s = await activateSessionTask(session.session_id, taskId);
+      setSession(s);
+      setSelectedId(taskId);
+      pushToast("Switching question cluster…", "ok");
+    } catch (e) {
+      const msg = String((e as Error).message || e);
+      setError(msg);
+      pushToast(msg, "error");
+      try {
+        const s = await getSession(session.session_id);
+        setSession(s);
+        setSelectedId(s.active_task_id ?? selectedId);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+
+  const onFinishTask = async (taskId: string) => {
+    if (!session || session.status !== "ready") return;
+    setError(null);
+    try {
+      const s = await finishSessionTask(session.session_id, taskId);
+      setSession(s);
+      pushToast(
+        "Question finished — grade saved (hidden until End Exam)",
+        "ok"
+      );
+    } catch (e) {
+      const msg = String((e as Error).message || e);
+      setError(msg);
+      pushToast(msg, "error");
     }
   };
 
@@ -252,6 +320,9 @@ export default function App() {
   }, [session, ending, pushToast, tasks.length]);
 
   const ready = session?.status === "ready";
+  const switching = session?.status === "switching";
+  const showProgress =
+    session?.status === "provisioning" || session?.status === "switching";
 
   const onDividerDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -427,15 +498,18 @@ export default function App() {
               : undefined
           }
         >
-          {session.status === "provisioning" && (
+          {showProgress && (
             <div className="provisioning">
               <div className="spinner" />
               <p>
-                Setting up your exam environment…
+                {switching
+                  ? "Switching question clusters…"
+                  : "Setting up your exam environment…"}
                 <br />
                 <small>
-                  First run can take several minutes while images are pulled;
-                  later starts are usually faster.
+                  {switching
+                    ? "Previous work is kept. Returning to an opened question reconnects; a new question provisions a fresh cluster (a few minutes)."
+                    : "Each question gets its own kind cluster. First run can take several minutes while images are pulled."}
                 </small>
               </p>
               <div
@@ -447,9 +521,7 @@ export default function App() {
                 aria-label={session.progress?.label || "Provisioning"}
               >
                 <div className="progress-meta">
-                  <span>
-                    {session.progress?.label || "Starting…"}
-                  </span>
+                  <span>{session.progress?.label || "Starting…"}</span>
                   <span>
                     {session.progress
                       ? `${session.progress.step}/${session.progress.total}`
@@ -473,7 +545,11 @@ export default function App() {
               <TaskPanel
                 tasks={tasks}
                 selectedId={selectedId}
-                onSelect={setSelectedId}
+                onSelect={onSelectTask}
+                onFinish={onFinishTask}
+                switching={switching}
+                openedTaskIds={session.opened_task_ids ?? []}
+                finishedTaskIds={session.finished_task_ids ?? []}
               />
               <div
                 className="exam-divider"
@@ -481,11 +557,24 @@ export default function App() {
                 role="separator"
                 aria-orientation="vertical"
               />
-              <Workspace
-                sessionId={session.session_id}
-                active={ready}
-                desktopUrl={session.desktop_url ?? null}
-              />
+              {session.active_task_id &&
+              !(session.finished_task_ids ?? []).includes(
+                session.active_task_id
+              ) ? (
+                <Workspace
+                  key={`${session.session_id}-${session.active_task_id}`}
+                  sessionId={session.session_id}
+                  active={ready}
+                  desktopUrl={session.desktop_url ?? null}
+                />
+              ) : (
+                <div className="workspace workspace-empty">
+                  <p>
+                    No active cluster. Open another question, or press{" "}
+                    <strong>End Exam</strong> to see your score.
+                  </p>
+                </div>
+              )}
             </>
           )}
           {session.status === "grading" && (

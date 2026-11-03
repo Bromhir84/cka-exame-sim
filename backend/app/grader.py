@@ -113,6 +113,67 @@ def load_answers(task: Task) -> str | None:
     return path.read_text(encoding="utf-8")
 
 
+def skipped_task_result(task: Task) -> dict:
+    """Score entry for a question never opened (no cluster / no attempt)."""
+    return {
+        "id": task.id,
+        "title": task.title,
+        "domain": task.domain,
+        "domain_label": task.domain_label,
+        "weight": task.weight,
+        "passed": False,
+        "earned": 0,
+        "checks": [
+            {
+                "id": "skipped",
+                "description": "Not attempted (question was not opened)",
+                "weight": task.weight,
+                "passed": False,
+                "earned": 0,
+            }
+        ],
+        "output": "",
+        "answers": load_answers(task),
+    }
+
+
+def assemble_score(tasks: list[Task], results_by_id: dict[str, dict]) -> dict:
+    """Build final report from per-question results (missing → skipped)."""
+    ordered = [
+        results_by_id[t.id] if t.id in results_by_id else skipped_task_result(t)
+        for t in tasks
+    ]
+    earned = 0
+    domain_earned: dict[str, int] = defaultdict(int)
+    domain_possible: dict[str, int] = defaultdict(int)
+    for task, result in zip(tasks, ordered, strict=True):
+        domain_possible[task.domain] += task.weight
+        earned += result["earned"]
+        domain_earned[task.domain] += result["earned"]
+
+    domains = []
+    for key, label in DOMAIN_LABELS.items():
+        possible = domain_possible.get(key, 0)
+        if possible == 0:
+            continue
+        domains.append(
+            {
+                "domain": key,
+                "label": label,
+                "earned": domain_earned.get(key, 0),
+                "possible": possible,
+            }
+        )
+
+    return {
+        "score": earned,
+        "pass": earned >= PASS_THRESHOLD,
+        "pass_threshold": PASS_THRESHOLD,
+        "results": ordered,
+        "domains": domains,
+    }
+
+
 async def grade_task(
     task: Task, kubeconfig: Path, cluster_name: str
 ) -> dict:
