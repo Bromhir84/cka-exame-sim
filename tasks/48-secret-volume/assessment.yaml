@@ -1,0 +1,9 @@
+checks:
+  - id: secret
+    description: Secret exists
+    weight: 40
+    script: checks/secret.sh
+  - id: mount
+    description: Secret mounted + Ready
+    weight: 60
+    script: checks/mount.sh

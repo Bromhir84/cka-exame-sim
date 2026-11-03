@@ -1,0 +1,9 @@
+checks:
+  - id: spec
+    description: Job image/restart/backoff
+    weight: 50
+    script: checks/spec.sh
+  - id: complete
+    description: Job Complete
+    weight: 50
+    script: checks/complete.sh

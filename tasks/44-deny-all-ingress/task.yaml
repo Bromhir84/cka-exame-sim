@@ -1,0 +1,3 @@
+id: 44-deny-all-ingress
+title: Default deny Ingress NetworkPolicy
+domain: networking

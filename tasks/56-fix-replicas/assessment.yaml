@@ -1,0 +1,9 @@
+checks:
+  - id: replicas
+    description: replicas=3
+    weight: 50
+    script: checks/replicas.sh
+  - id: ready
+    description: Ready + image unchanged
+    weight: 50
+    script: checks/ready.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: init
+    description: initContainer present
+    weight: 50
+    script: checks/init.sh
+  - id: ready
+    description: Pod Ready
+    weight: 50
+    script: checks/ready.sh

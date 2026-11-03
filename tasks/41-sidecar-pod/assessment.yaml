@@ -1,0 +1,9 @@
+checks:
+  - id: containers
+    description: Two named containers
+    weight: 50
+    script: checks/containers.sh
+  - id: ready
+    description: Pod Ready
+    weight: 50
+    script: checks/ready.sh

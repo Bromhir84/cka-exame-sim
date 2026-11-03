@@ -1,0 +1,9 @@
+checks:
+  - id: headless
+    description: clusterIP None
+    weight: 50
+    script: checks/headless.sh
+  - id: sel
+    description: Selector + port
+    weight: 50
+    script: checks/sel.sh

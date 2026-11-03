@@ -1,0 +1,9 @@
+checks:
+  - id: vol
+    description: emptyDir named cache
+    weight: 50
+    script: checks/vol.sh
+  - id: ready
+    description: Mount path + Ready
+    weight: 50
+    script: checks/ready.sh

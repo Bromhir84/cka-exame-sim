@@ -1,0 +1,3 @@
+id: 50-hostpath-pv
+title: Static hostPath PV + PVC
+domain: storage

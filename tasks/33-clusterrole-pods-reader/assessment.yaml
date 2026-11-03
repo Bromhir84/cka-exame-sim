@@ -1,0 +1,9 @@
+checks:
+  - id: cr
+    description: ClusterRole verbs/resources
+    weight: 40
+    script: checks/cr.sh
+  - id: bind
+    description: RoleBinding to SA
+    weight: 60
+    script: checks/bind.sh

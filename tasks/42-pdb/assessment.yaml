@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: PDB exists
+    weight: 40
+    script: checks/exists.sh
+  - id: spec
+    description: minAvailable + selector
+    weight: 60
+    script: checks/spec.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: type
+    description: Type ExternalName
+    weight: 40
+    script: checks/type.sh
+  - id: name
+    description: externalName value
+    weight: 60
+    script: checks/name.sh

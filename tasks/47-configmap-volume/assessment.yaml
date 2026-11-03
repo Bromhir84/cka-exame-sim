@@ -1,0 +1,9 @@
+checks:
+  - id: cm
+    description: ConfigMap data
+    weight: 40
+    script: checks/cm.sh
+  - id: mount
+    description: Volume mount + Ready
+    weight: 60
+    script: checks/mount.sh

@@ -1,0 +1,9 @@
+checks:
+  - id: sc
+    description: StorageClass fields
+    weight: 60
+    script: checks/sc.sh
+  - id: pvc
+    description: PVC uses StorageClass
+    weight: 40
+    script: checks/pvc.sh

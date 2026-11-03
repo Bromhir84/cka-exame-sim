@@ -1,0 +1,9 @@
+checks:
+  - id: exists
+    description: Policy exists + Ingress type
+    weight: 50
+    script: checks/exists.sh
+  - id: empty
+    description: No ingress allow rules
+    weight: 50
+    script: checks/empty.sh

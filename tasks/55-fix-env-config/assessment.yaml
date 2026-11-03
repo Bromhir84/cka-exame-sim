@@ -1,0 +1,9 @@
+checks:
+  - id: cm
+    description: ConfigMap MODE=batch
+    weight: 50
+    script: checks/cm.sh
+  - id: ready
+    description: Deployment Ready
+    weight: 50
+    script: checks/ready.sh

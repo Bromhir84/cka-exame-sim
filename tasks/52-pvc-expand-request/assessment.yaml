@@ -1,0 +1,9 @@
+checks:
+  - id: size
+    description: PVC 5Gi
+    weight: 40
+    script: checks/size.sh
+  - id: ready
+    description: Bound + Pod Ready
+    weight: 60
+    script: checks/ready.sh

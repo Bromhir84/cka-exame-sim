@@ -1,0 +1,9 @@
+checks:
+  - id: affinity
+    description: Required nodeAffinity
+    weight: 60
+    script: checks/affinity.sh
+  - id: ready
+    description: Deployment Ready
+    weight: 40
+    script: checks/ready.sh

@@ -40,7 +40,7 @@ slots:
     weight: 7
 
 bank:
-  # architecture (8)
+  # architecture (12)
   - 01-rbac
   - 02-etcd-backup
   - 09-clusterrole-binding
@@ -49,13 +49,23 @@ bank:
   - 12-clusterrole-ns-get
   - 13-sa-deploy-binding
   - 14-rbac-jobs
-  # workloads (5)
+  - 33-clusterrole-pods-reader
+  - 34-resourcequota
+  - 35-limitrange
+  - 36-serviceaccount-automount
+  # workloads (11)
   - 03-deployment-config
   - 15-cronjob
   - 16-scale-deployment
   - 17-probes-deployment
   - 18-resource-limits
-  # networking (7)
+  - 37-job-complete
+  - 38-deploy-affinity
+  - 39-daemonset
+  - 40-init-container
+  - 41-sidecar-pod
+  - 42-pdb
+  # networking (11)
   - 04-service-ingress
   - 05-network-policy
   - 19-nodeport-service
@@ -63,12 +73,22 @@ bank:
   - 21-networkpolicy-egress
   - 22-clusterip-multi-port
   - 23-service-labels
-  # storage (4)
+  - 43-headless-service
+  - 44-deny-all-ingress
+  - 45-ingress-two-hosts
+  - 46-externalname-service
+  # storage (10)
   - 06-persistent-volume
   - 24-pvc-busybox
   - 25-pvc-storageclass
   - 26-pvc-mount-subpath
-  # troubleshooting (8)
+  - 47-configmap-volume
+  - 48-secret-volume
+  - 49-emptydir-pod
+  - 50-hostpath-pv
+  - 51-storageclass-custom
+  - 52-pvc-expand-request
+  # troubleshooting (12)
   - 07-fix-workload
   - 08-fix-cluster
   - 27-crashloop-fix
@@ -77,3 +97,7 @@ bank:
   - 30-failing-probe
   - 31-missing-configmap
   - 32-service-wrong-target
+  - 53-fix-imagepull
+  - 54-fix-service-port
+  - 55-fix-env-config
+  - 56-fix-replicas

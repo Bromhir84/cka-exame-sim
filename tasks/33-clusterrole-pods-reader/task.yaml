@@ -1,0 +1,3 @@
+id: 33-clusterrole-pods-reader
+title: ClusterRole bound in a namespace
+domain: architecture

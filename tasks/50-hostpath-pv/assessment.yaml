@@ -1,0 +1,9 @@
+checks:
+  - id: pv
+    description: PV manual hostPath
+    weight: 40
+    script: checks/pv.sh
+  - id: bound
+    description: PVC Bound + Pod Ready
+    weight: 60
+    script: checks/bound.sh

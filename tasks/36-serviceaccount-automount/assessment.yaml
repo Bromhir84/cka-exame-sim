@@ -1,0 +1,9 @@
+checks:
+  - id: sa
+    description: SA automount false
+    weight: 40
+    script: checks/sa.sh
+  - id: pod
+    description: Pod SA + automount + Ready
+    weight: 60
+    script: checks/pod.sh

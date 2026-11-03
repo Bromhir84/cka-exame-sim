@@ -1,0 +1,9 @@
+checks:
+  - id: spec
+    description: DaemonSet image
+    weight: 40
+    script: checks/spec.sh
+  - id: ready
+    description: All scheduled pods Ready
+    weight: 60
+    script: checks/ready.sh

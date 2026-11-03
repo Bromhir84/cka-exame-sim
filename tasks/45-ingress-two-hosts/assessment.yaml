@@ -1,0 +1,9 @@
+checks:
+  - id: hosts
+    description: Both hosts present
+    weight: 60
+    script: checks/hosts.sh
+  - id: class
+    description: ingressClassName nginx
+    weight: 40
+    script: checks/class.sh

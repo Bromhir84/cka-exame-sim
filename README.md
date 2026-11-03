@@ -14,7 +14,7 @@ Browser-based CKA practice exam with a real Kubernetes cluster (kind), embedded 
 
 Pass hint: **66%** (same as the real exam).
 
-Each **full exam** randomly draws **16 questions** from a **32-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
+Each **full exam** randomly draws **16 questions** from a **56-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
 
 You can also choose a **single domain** in the lobby to practice every question in that domain (weights equalized to 100%).
 
@@ -104,7 +104,7 @@ python scripts/validate-tasks.py
 - `backend/` — FastAPI session API, WebSocket PTY, grader, desktop lifecycle
 - `frontend/` — React + Vite + xterm.js exam UI
 - `desktop/` — XFCE + TigerVNC + noVNC + kubectl + allowlisted Firefox image
-- `tasks/` — 32-task bank + `catalog.yaml` slots for domain-balanced draws
+- `tasks/` — 56-task bank + `catalog.yaml` slots for domain-balanced draws
 - `scripts/install.sh` / `scripts/install.ps1` — one-line installers
 - `install.bat` — Windows one-click start
 
