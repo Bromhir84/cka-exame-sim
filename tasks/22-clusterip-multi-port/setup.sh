@@ -19,10 +19,12 @@ spec:
     spec:
       containers:
         - name: dual
-          image: hashicorp/http-echo:1.0
-          args: ["-text=dual","-listen=:80"]
+          # Use nginx (already common in this bank) — only needs Ready + labels for grading.
+          image: nginx:1.27
           ports:
-            - containerPort: 80
-            - containerPort: 8080
+            - name: http
+              containerPort: 80
+            - name: metrics
+              containerPort: 8080
 EOF
 kubectl -n net-multiport rollout status deploy/dual --timeout=180s

@@ -17,10 +17,19 @@ spec:
     spec:
       containers:
         - name: api
-          image: hashicorp/http-echo:1.0
-          args: ["-text=ok", "-listen=:8080"]
+          image: nginx:1.27
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              printf '%s\n' 'server { listen 8080; location / { root /usr/share/nginx/html; } }' > /etc/nginx/conf.d/default.conf
+              nginx -g 'daemon off;'
           ports:
             - containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            initialDelaySeconds: 2
+            periodSeconds: 3
 ---
 apiVersion: v1
 kind: Service
