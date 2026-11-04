@@ -14,6 +14,8 @@ from app.docs_proxy import (  # noqa: E402
     is_allowed,
     is_allowed_asset,
     path_proxy_for,
+    resolve_navigation_url,
+    unwrap_search_redirect,
 )
 
 
@@ -81,6 +83,34 @@ class DocsSearchRewriteTests(unittest.TestCase):
     def test_search_url_stays_allowed(self):
         self.assertTrue(is_allowed("https://kubernetes.io/search/?q=pods"))
         self.assertTrue(is_allowed("https://kubernetes.io/zh-cn/search/?q=pod"))
+
+    def test_google_cse_result_unwraps_to_docs(self):
+        # The link shape Google CSE injects into kubernetes.io search results.
+        raw = (
+            "https://www.google.com/url?client=internal-element-cse"
+            "&cx=013288817511911618469:elfqqbqldzg&opi=88066884"
+            "&q=https://kubernetes.io/docs/concepts/policy/resource-quotas/"
+            "&sa=U&ved=2ahUKEwin76jL_-2XAxUNXUEAHdycFaYQFnoECAUQAg"
+            "&usg=AOvVaw04ARryruBdoNd0gx7EsEB4"
+        )
+        docs = "https://kubernetes.io/docs/concepts/policy/resource-quotas/"
+        self.assertEqual(unwrap_search_redirect(raw), docs)
+        self.assertEqual(resolve_navigation_url(raw), docs)
+        self.assertTrue(is_allowed(docs))
+        self.assertFalse(is_allowed(raw))
+
+    def test_google_cse_url_param_and_non_redirects(self):
+        encoded = (
+            "https://www.google.com/url?q=&sa=U&url="
+            "https%3A%2F%2Fhelm.sh%2Fdocs%2F"
+        )
+        self.assertEqual(
+            unwrap_search_redirect(encoded),
+            "https://helm.sh/docs/",
+        )
+        search = "https://www.google.com/search?q=pods"
+        self.assertEqual(unwrap_search_redirect(search), search)
+        self.assertFalse(is_allowed(search))
 
 
 if __name__ == "__main__":

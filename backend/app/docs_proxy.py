@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.parse import quote, urljoin, urlparse, urlunparse
+from urllib.parse import parse_qs, quote, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -249,6 +249,52 @@ def is_allowed(url: str) -> bool:
         return True
 
     return False
+
+
+def _is_google_host(host: str) -> bool:
+    host = host.lower()
+    if host.startswith("www."):
+        host = host[4:]
+    return host == "google.com" or host.startswith("google.") or host.endswith(".google.com")
+
+
+def unwrap_search_redirect(url: str) -> str:
+    """Follow a Google CSE ``/url?q=`` wrapper to the real documentation link.
+
+    Search result anchors point at ``https://www.google.com/url?...&q=https://kubernetes.io/...``.
+    That host is not on the CKA allowlist, so the click otherwise stops on the
+    blocked page even though the destination is a docs URL.
+    """
+    current = url.strip()
+    for _ in range(3):
+        parsed = urlparse(current)
+        if parsed.scheme not in {"http", "https"} or not _is_google_host(parsed.netloc):
+            return current
+        if (parsed.path or "/").rstrip("/") != "/url":
+            return current
+        params = parse_qs(parsed.query, keep_blank_values=False)
+        dest = ""
+        for key in ("url", "q"):
+            for value in params.get(key, []):
+                candidate = value.strip()
+                if candidate.startswith(("http://", "https://")):
+                    dest = candidate
+                    break
+            if dest:
+                break
+        if not dest or dest == current:
+            return current
+        current = dest
+    return current
+
+
+def resolve_navigation_url(url: str) -> str:
+    """Normalize a docs URL, unwrapping Google result redirects first."""
+    target = _normalize(url)
+    unwrapped = unwrap_search_redirect(target)
+    if unwrapped != target:
+        target = _normalize(unwrapped)
+    return target
 
 
 def proxy_url_for(target: str) -> str:
@@ -704,7 +750,7 @@ async def docs_proxy(url: str = Query(..., min_length=8)):
 
 async def render_proxied(url: str):
     try:
-        target = _normalize(url)
+        target = resolve_navigation_url(url)
     except HTTPException:
         return blocked_response(
             url,
