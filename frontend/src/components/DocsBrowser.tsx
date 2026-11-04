@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Bookmark = { title: string; url: string };
 
@@ -15,6 +15,33 @@ export default function DocsBrowser() {
   const [history, setHistory] = useState<string[]>([currentUrl]);
   const [histIndex, setHistIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  const historyRef = useRef(history);
+  const histIndexRef = useRef(histIndex);
+  const currentUrlRef = useRef(currentUrl);
+  historyRef.current = history;
+  histIndexRef.current = histIndex;
+  currentUrlRef.current = currentUrl;
+
+  const navigateTo = useCallback((url: string, push = true) => {
+    setError(null);
+    let next = url.trim();
+    if (!/^https?:\/\//i.test(next)) {
+      next = `https://${next}`;
+    }
+    setAddress(next);
+    if (next === currentUrlRef.current) return;
+    currentUrlRef.current = next;
+    setCurrentUrl(next);
+    if (!push) return;
+    const trimmed = historyRef.current.slice(0, histIndexRef.current + 1);
+    if (trimmed[trimmed.length - 1] !== next) trimmed.push(next);
+    const idx = trimmed.length - 1;
+    historyRef.current = trimmed;
+    histIndexRef.current = idx;
+    setHistory(trimmed);
+    setHistIndex(idx);
+  }, []);
 
   useEffect(() => {
     fetch("/api/docs/bookmarks")
@@ -22,6 +49,9 @@ export default function DocsBrowser() {
       .then((data) => {
         setBookmarks(data.bookmarks || []);
         if (data.default_url) {
+          currentUrlRef.current = data.default_url;
+          histIndexRef.current = 0;
+          historyRef.current = [data.default_url];
           setCurrentUrl(data.default_url);
           setAddress(data.default_url);
           setHistory([data.default_url]);
@@ -33,25 +63,24 @@ export default function DocsBrowser() {
       });
   }, []);
 
-  const iframeSrc = useMemo(() => proxySrc(currentUrl), [currentUrl]);
+  // In-page search and result clicks ask the shell to move the iframe. A
+  // root-relative /search/ navigation would otherwise load this exam UI.
+  useEffect(() => {
+    const onMsg = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== "cka-docs-nav" || typeof data.url !== "string") {
+        return;
+      }
+      const frame = frameRef.current;
+      if (frame && event.source !== frame.contentWindow) return;
+      navigateTo(data.url);
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [navigateTo]);
 
-  const navigateTo = (url: string, push = true) => {
-    setError(null);
-    let next = url.trim();
-    if (!/^https?:\/\//i.test(next)) {
-      next = `https://${next}`;
-    }
-    setCurrentUrl(next);
-    setAddress(next);
-    if (push) {
-      setHistory((prev) => {
-        const trimmed = prev.slice(0, histIndex + 1);
-        trimmed.push(next);
-        setHistIndex(trimmed.length - 1);
-        return trimmed;
-      });
-    }
-  };
+  const iframeSrc = useMemo(() => proxySrc(currentUrl), [currentUrl]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -61,8 +90,10 @@ export default function DocsBrowser() {
   const goBack = () => {
     if (histIndex <= 0) return;
     const idx = histIndex - 1;
-    setHistIndex(idx);
     const url = history[idx];
+    histIndexRef.current = idx;
+    currentUrlRef.current = url;
+    setHistIndex(idx);
     setCurrentUrl(url);
     setAddress(url);
   };
@@ -70,8 +101,10 @@ export default function DocsBrowser() {
   const goForward = () => {
     if (histIndex >= history.length - 1) return;
     const idx = histIndex + 1;
-    setHistIndex(idx);
     const url = history[idx];
+    histIndexRef.current = idx;
+    currentUrlRef.current = url;
+    setHistIndex(idx);
     setCurrentUrl(url);
     setAddress(url);
   };
@@ -118,6 +151,7 @@ export default function DocsBrowser() {
       </div>
       {error && <div className="docs-error">{error}</div>}
       <iframe
+        ref={frameRef}
         className="docs-frame"
         title="Exam documentation browser"
         src={iframeSrc}

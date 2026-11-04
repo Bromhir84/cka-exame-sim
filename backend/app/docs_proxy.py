@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import Response
 
 # Official CKA browser allowlist (Linux Foundation “Resources Allowed”):
@@ -187,7 +188,11 @@ def is_allowed_asset(url: str) -> bool:
         return True
 
     if host in {"kubernetes.io"} or host.endswith(".kubernetes.io"):
-        return _looks_like_asset(path) or bool(_K8S_NAV_PATH.match(path))
+        return (
+            _looks_like_asset(path)
+            or bool(_K8S_NAV_PATH.match(path))
+            or _is_pagefind_path(path)
+        )
 
     if host in {"helm.sh", "www.helm.sh"} or host.endswith(".helm.sh"):
         return path.startswith("/docs/") or _looks_like_asset(path)
@@ -220,11 +225,13 @@ def is_allowed(url: str) -> bool:
         return True
 
     if host == "kubernetes.io":
-        if _K8S_NAV_PATH.match(path):
+        if _K8S_NAV_PATH.match(path) or _is_pagefind_path(path):
             return True
         return _looks_like_asset(path)
 
-    if host.endswith(".kubernetes.io") and _looks_like_asset(path):
+    if host.endswith(".kubernetes.io") and (
+        _looks_like_asset(path) or _is_pagefind_path(path)
+    ):
         return True
 
     # Helm docs (CKA/CKAD)
@@ -246,6 +253,55 @@ def is_allowed(url: str) -> bool:
 
 def proxy_url_for(target: str) -> str:
     return f"/api/docs/proxy?url={quote(target, safe='')}"
+
+
+def _is_pagefind_path(path: str) -> bool:
+    """Pagefind index, wasm, and UI used by kubernetes.io docs search."""
+    lower = path.lower()
+    return lower == "/pagefind" or lower.startswith("/pagefind/")
+
+
+_HOST_RE = re.compile(r"^[A-Za-z0-9.-]{1,253}$")
+_SHIM_PATH = Path(__file__).with_name("docs_shim.js")
+
+
+def path_proxy_for(target: str) -> str:
+    """Proxy URL that keeps the upstream filename in the path.
+
+    Pagefind derives its index directory from ``document.currentScript`` /
+    ``import.meta.url``. A query-string proxy (``/api/docs/proxy?url=...``)
+    hides ``pagefind-ui.js`` from that parser, so the UI requests
+    ``/pagefind/...`` on the exam origin.
+    """
+    parsed = urlparse(target)
+    scheme = parsed.scheme if parsed.scheme in {"http", "https"} else "https"
+    host = parsed.netloc
+    path = parsed.path or "/"
+    if not path.startswith("/"):
+        path = "/" + path
+    url = f"/api/docs/p/{scheme}/{host}{path}"
+    if parsed.query:
+        url += f"?{parsed.query}"
+    return url
+
+
+def _proxied_resource(target: str) -> str:
+    if _is_pagefind_path(urlparse(target).path):
+        return path_proxy_for(target)
+    return proxy_url_for(target)
+
+
+def _absolute_search_page(raw: str, base_url: str) -> str:
+    """Turn ``data-search-page`` into an absolute docs URL (no query).
+
+    The site concatenates ``"?q=" + text`` onto this value. A root-relative
+    ``/search/`` resolves against the exam origin and loads the exam UI.
+    """
+    absolute = urljoin(base_url, raw.strip())
+    parsed = urlparse(absolute)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return raw
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
 
 
 def blocked_url_for(target: str) -> str:
@@ -491,6 +547,19 @@ def _meta_refresh_target(html: str, base_url: str) -> str | None:
 def _rewrite_html(html: str, base_url: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
 
+    # Root-relative search targets and frame-busting link targets. Done before
+    # link rewriting so data-search-page stays an absolute docs URL (the site's
+    # own script concatenates "?q=" onto it).
+    for tag in soup.find_all(True):
+        for attr in ("target", "linktarget"):
+            val = tag.get(attr)
+            if isinstance(val, str) and val.lower() in {"_parent", "_top"}:
+                tag[attr] = "_self"
+        raw_search = tag.get("data-search-page")
+        if isinstance(raw_search, str) and raw_search.strip():
+            if not raw_search.startswith(("data:", "javascript:", "mailto:", "#")):
+                tag["data-search-page"] = _absolute_search_page(raw_search, base_url)
+
     # Remove frame-busting / CSP meta; rewrite refresh so it stays inside the proxy
     # (site-relative /docs/ would otherwise leave the proxied iframe).
     for tag in soup.find_all("meta"):
@@ -537,7 +606,7 @@ def _rewrite_html(html: str, base_url: str) -> str:
 
             # Assets: stylesheet, script, image, etc.
             if is_allowed_asset(absolute) or is_allowed(absolute):
-                tag[attr] = proxy_url_for(absolute)
+                tag[attr] = _proxied_resource(absolute)
             else:
                 # Never point CSS/JS at the HTML blocked page (that yields a
                 # plain-text looking document). Drop the resource instead.
@@ -555,7 +624,24 @@ def _rewrite_html(html: str, base_url: str) -> str:
     elif soup.html:
         soup.html.insert(0, notice)
 
+    _inject_navigation_shim(soup, base_url)
     return str(soup)
+
+
+def _inject_navigation_shim(soup: BeautifulSoup, base_url: str) -> None:
+    """Keep in-page search and root-relative result links inside the proxy."""
+    head = soup.head
+    if head is None:
+        head = soup.new_tag("head")
+        if soup.html:
+            soup.html.insert(0, head)
+        else:
+            soup.insert(0, head)
+    tag = soup.new_tag("script")
+    tag["src"] = "/api/docs/shim.js"
+    tag["data-doc-url"] = base_url
+    tag["data-exam-shim"] = "1"
+    head.insert(0, tag)
 
 
 @router.get("/bookmarks")
@@ -573,8 +659,50 @@ async def docs_blocked(url: str = Query(default="", max_length=2048)):
     )
 
 
+@router.get("/shim.js")
+async def docs_shim_js():
+    """Navigation helper injected into proxied documentation pages."""
+    try:
+        body = _SHIM_PATH.read_bytes()
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="docs shim missing") from exc
+    return Response(
+        content=body,
+        media_type="application/javascript; charset=utf-8",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.get("/p/{scheme}/{host}/{asset_path:path}")
+async def docs_path_proxy(
+    scheme: str,
+    host: str,
+    asset_path: str,
+    request: Request,
+):
+    """Path-style proxy so Pagefind can resolve sibling index files."""
+    if (
+        scheme not in {"http", "https"}
+        or not _HOST_RE.fullmatch(host)
+        or not asset_path
+        or ".." in asset_path.split("/")
+    ):
+        return blocked_response(
+            str(request.url),
+            "Invalid documentation asset URL.",
+        )
+    target = f"{scheme}://{host}/{asset_path.lstrip('/')}"
+    if request.url.query:
+        target = f"{target}?{request.url.query}"
+    return await render_proxied(target)
+
+
 @router.get("/proxy")
 async def docs_proxy(url: str = Query(..., min_length=8)):
+    return await render_proxied(url)
+
+
+async def render_proxied(url: str):
     try:
         target = _normalize(url)
     except HTTPException:
