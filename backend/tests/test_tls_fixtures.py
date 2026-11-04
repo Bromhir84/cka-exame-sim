@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from app.grader import _run_script  # noqa: E402
 
 TASK = Path(__file__).resolve().parents[2] / "tasks" / "86-gateway-tls"
 
@@ -42,12 +48,10 @@ class GatewayTlsFixtureTests(unittest.TestCase):
             env = os.environ.copy()
             env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
             env["KUBECONFIG"] = str(home / "kubeconfig-86-gateway-tls")
-            subprocess.run(
-                ["bash", str(TASK / "setup.sh")],
-                check=True,
-                env=env,
-                cwd=TASK,
-            )
+            env["TASK_DIR"] = str(TASK)
+            # Same path the exam uses: the script is copied out of the task dir first.
+            code, out = asyncio.run(_run_script(TASK / "setup.sh", env, TASK, timeout=30))
+            self.assertEqual(code, 0, out)
             self.assertEqual((home / "tls.crt").read_bytes(), (TASK / "tls.crt").read_bytes())
             self.assertEqual((home / "tls.key").read_bytes(), (TASK / "tls.key").read_bytes())
 
