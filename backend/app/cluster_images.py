@@ -88,6 +88,17 @@ def images_to_load(present: set[str]) -> list[str]:
     return [image.name for image in CACHED_IMAGES if image.name in present]
 
 
+def image_inspect_cmd(name: str) -> list[str]:
+    """Command that is true when ``name`` is already in the local Docker daemon.
+
+    This is the same check kind uses before pulling the node image
+    (``docker inspect --type=image``). ``docker image inspect`` does not
+    accept ``--type``, so that form always fails and every kind node then
+    downloads the images again.
+    """
+    return ["docker", "inspect", "--type=image", name]
+
+
 _DIGEST_PIN = re.compile(r"@sha256:[a-f0-9]{64}")
 
 
@@ -140,7 +151,7 @@ async def _run(cmd: list[str], timeout: int) -> tuple[int, str]:
 
 
 async def _image_present(name: str) -> bool:
-    code, _ = await _run(["docker", "image", "inspect", "--type=image", name], timeout=30)
+    code, _ = await _run(image_inspect_cmd(name), timeout=30)
     return code == 0
 
 

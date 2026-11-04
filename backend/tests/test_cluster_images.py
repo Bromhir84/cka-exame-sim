@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.cluster_images import (  # noqa: E402
     CACHED_IMAGES,
     CALICO_VERSION,
+    image_inspect_cmd,
     images_to_load,
     pull_plan,
     strip_image_digests,
@@ -41,6 +42,14 @@ class ClusterImageCacheTests(unittest.TestCase):
         # These tags are supposed to fail image pull in troubleshooting tasks.
         self.assertNotIn("nginx:1.27-notreal", names)
         self.assertNotIn("nginx:1.27-this-tag-does-not-exist", names)
+
+    def test_local_image_check_matches_kind(self):
+        cmd = image_inspect_cmd("docker.io/calico/node:v3.28.2")
+        self.assertEqual(
+            cmd,
+            ["docker", "inspect", "--type=image", "docker.io/calico/node:v3.28.2"],
+        )
+        self.assertNotIn("image", cmd[1:2])
 
     def test_images_to_load_skips_anything_not_on_the_host(self):
         present = {"nginx:1.27", "busybox:1.36", "kindest/node:v1.31.4"}
