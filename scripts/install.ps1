@@ -107,11 +107,16 @@ if (-not $ready) {
   throw "Stack did not become healthy in time. Check: docker compose logs"
 }
 
+Write-Host "==> Pulling cluster images (reused by every kind cluster)…"
+docker compose exec -T backend python -m app.preload_images
+if ($LASTEXITCODE -ne 0) { throw "Failed to pull cluster images. Check: docker compose logs backend" }
+
 Write-Host ""
 Write-Host "Ready." -ForegroundColor Green
 Write-Host "  UI:  http://localhost:5173"
 Write-Host "  API: http://localhost:8000"
-Write-Host "First Start Exam can take several minutes (kind + networking)."
+Write-Host "Cluster images are cached. New clusters load them instead of downloading again."
+Write-Host "The first cluster still takes a few minutes to boot."
 Write-Host "Stop with:  docker compose down"
 Start-Process "http://localhost:5173"
 

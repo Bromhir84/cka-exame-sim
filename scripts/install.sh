@@ -66,12 +66,19 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
+echo "==> Pulling cluster images (reused by every kind cluster)…"
+if ! docker compose exec -T backend python -m app.preload_images; then
+  echo "ERROR: Failed to pull cluster images. Check: docker compose logs backend"
+  exit 1
+fi
+
 echo
 echo "Ready."
 echo "  UI:  http://localhost:5173"
 echo "  API: http://localhost:8000"
 echo
-echo "First Start Exam can take several minutes (kind + networking)."
+echo "Cluster images are cached. New clusters load them instead of downloading again."
+echo "The first cluster still takes a few minutes to boot."
 echo "Stop with:  docker compose down"
 echo
 if command -v open >/dev/null 2>&1; then

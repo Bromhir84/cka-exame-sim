@@ -82,6 +82,14 @@ timeout /t 2 /nobreak >nul
 goto wait_health
 
 :healthy
+echo Pulling cluster images (reused by every kind cluster)...
+docker compose exec -T backend python -m app.preload_images
+if errorlevel 1 (
+  echo [ERROR] Failed to pull cluster images.
+  echo Check logs with: docker compose logs backend
+  exit /b 1
+)
+
 echo [3/3] Opening UI...
 start "" "http://localhost:5173"
 
@@ -90,7 +98,8 @@ echo Ready.
 echo   UI:  http://localhost:5173
 echo   API: http://localhost:8000
 echo.
-echo First "Start Exam" can take several minutes (kind + networking).
+echo Cluster images are cached. New clusters load them instead of downloading again.
+echo The first cluster still takes a few minutes to boot.
 echo Stop with:  docker compose down
 echo.
 endlocal
