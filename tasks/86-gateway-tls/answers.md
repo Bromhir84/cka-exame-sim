@@ -3,9 +3,7 @@ Terminate TLS on Gateway `web-gw` with Secret `web-tls`, and route HTTPS hostnam
 
 ## Steps
 ```bash
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-  -keyout /tmp/tls.key -out /tmp/tls.crt -subj "/CN=tls.cka.local"
-kubectl -n net-tls86 create secret tls web-tls --cert=/tmp/tls.crt --key=/tmp/tls.key
+kubectl -n net-tls86 create secret tls web-tls --cert="$HOME/tls.crt" --key="$HOME/tls.key"
 
 kubectl -n net-tls86 apply -f - <<'EOF'
 apiVersion: gateway.networking.k8s.io/v1

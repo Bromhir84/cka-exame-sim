@@ -4,7 +4,9 @@ Namespace `net-tls86` has Service `web` on port 80.
 
 GatewayClass `nginx` is already installed.
 
-1. Create TLS Secret `web-tls` (type `kubernetes.io/tls`) with a certificate and key for `tls.cka.local`. A self-signed certificate is enough.
+Your home directory already contains `tls.crt` and `tls.key` for `tls.cka.local`.
+
+1. Create TLS Secret `web-tls` (type `kubernetes.io/tls`) from those files.
 2. Create Gateway `web-gw`:
    - `gatewayClassName: nginx`
    - one listener named `https`, protocol `HTTPS`, port **443**, hostname `tls.cka.local`
