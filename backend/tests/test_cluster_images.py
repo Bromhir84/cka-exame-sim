@@ -11,9 +11,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.cluster_images import (  # noqa: E402
     CACHED_IMAGES,
     CALICO_VERSION,
+    choose_import_source,
+    cri_ref,
     image_inspect_cmd,
     images_to_load,
+    imported_refs,
+    node_import_cmd,
     pull_plan,
+    snapshotter_from_config,
     strip_image_digests,
 )
 from app.config import KIND_IMAGE  # noqa: E402
@@ -42,6 +47,62 @@ class ClusterImageCacheTests(unittest.TestCase):
         # These tags are supposed to fail image pull in troubleshooting tasks.
         self.assertNotIn("nginx:1.27-notreal", names)
         self.assertNotIn("nginx:1.27-this-tag-does-not-exist", names)
+
+    def test_cri_ref_matches_kubelet_normalization(self):
+        self.assertEqual(cri_ref("nginx:1.27"), "docker.io/library/nginx:1.27")
+        self.assertEqual(cri_ref("busybox:1.36"), "docker.io/library/busybox:1.36")
+        self.assertEqual(
+            cri_ref("docker.io/calico/node:v3.28.2"),
+            "docker.io/calico/node:v3.28.2",
+        )
+        self.assertEqual(
+            cri_ref("registry.k8s.io/ingress-nginx/controller:v1.11.3"),
+            "registry.k8s.io/ingress-nginx/controller:v1.11.3",
+        )
+
+    def test_node_import_skips_other_platforms(self):
+        cmd = node_import_cmd(
+            "cka-node",
+            "overlayfs",
+            digests=True,
+            local=False,
+        )
+        self.assertNotIn("--all-platforms", cmd)
+        self.assertIn("--digests", cmd)
+        self.assertIn("--snapshotter=overlayfs", cmd)
+        self.assertEqual(cmd[-1], "-")
+        fallback = node_import_cmd(
+            "cka-node",
+            "overlayfs",
+            digests=False,
+            local=True,
+        )
+        self.assertIn("--local", fallback)
+        self.assertNotIn("--digests", fallback)
+        self.assertNotIn("--all-platforms", fallback)
+
+    def test_import_output_and_snapshotter(self):
+        output = (
+            "unpacking docker.io/library/nginx:1.27 (sha256:abc)...done\n"
+            "unpacking nginx:1.27 (sha256:def)...done\n"
+        )
+        refs = imported_refs(output)
+        self.assertEqual(
+            choose_import_source(refs, "nginx:1.27"),
+            "docker.io/library/nginx:1.27",
+        )
+        config = """
+version = 2
+
+[plugins."io.containerd.grpc.v1.cri".containerd]
+  snapshotter = "overlayfs"
+  disable_snapshot_annotations = true
+
+[plugins."io.containerd.grpc.v1.cri".cni]
+  bin_dir = "/opt/cni/bin"
+"""
+        self.assertEqual(snapshotter_from_config(config), "overlayfs")
+        self.assertEqual(snapshotter_from_config("version = 2\n"), "overlayfs")
 
     def test_local_image_check_matches_kind(self):
         cmd = image_inspect_cmd("docker.io/calico/node:v3.28.2")
