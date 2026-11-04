@@ -4,12 +4,19 @@ import asyncio
 import shutil
 import socket
 import textwrap
+import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 
+from .cluster_images import (
+    CALICO_MANIFEST,
+    INGRESS_MANIFEST,
+    load_cached_images,
+    strip_image_digests,
+)
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
 from .grader import assemble_score, grade_task, run_setup
 from .tasks_loader import Task, select_exam_tasks
@@ -24,7 +31,7 @@ class SessionStatus(str, Enum):
     ERROR = "error"
 
 
-PROVISION_STEPS = 6
+PROVISION_STEPS = 7
 RECONNECT_STEPS = 2
 
 
@@ -126,6 +133,30 @@ async def _run(cmd: list[str], timeout: int = 600) -> tuple[int, str]:
         await proc.communicate()
         return 1, f"command timed out: {' '.join(cmd)}"
     return proc.returncode or 0, (out or b"").decode("utf-8", errors="replace")
+
+
+async def _run_stdin(cmd: list[str], stdin: str, timeout: int = 600) -> tuple[int, str]:
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+    )
+    try:
+        out, _ = await asyncio.wait_for(
+            proc.communicate(stdin.encode("utf-8")), timeout=timeout
+        )
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.communicate()
+        return 1, f"command timed out: {' '.join(cmd)}"
+    return proc.returncode or 0, (out or b"").decode("utf-8", errors="replace")
+
+
+def _fetch_text(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "cka-exam-sim"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        return resp.read().decode("utf-8")
 
 
 def _kind_config(path: Path) -> None:
@@ -233,7 +264,7 @@ async def _install_calico(kubeconfig: Path) -> None:
             "apply",
             "--validate=false",
             "-f",
-            "https://raw.githubusercontent.com/projectcalico/calico/v3.28.2/manifests/calico.yaml",
+            CALICO_MANIFEST,
         ],
         timeout=180,
     )
@@ -265,15 +296,21 @@ async def _install_calico(kubeconfig: Path) -> None:
 
 
 async def _install_ingress(kubeconfig: Path) -> None:
-    code, out = await _run(
+    # Apply by tag. Digest pins do not match the single-platform image kind
+    # loaded from the host cache, and kubelet would pull them again.
+    manifest = strip_image_digests(
+        await asyncio.to_thread(_fetch_text, INGRESS_MANIFEST)
+    )
+    code, out = await _run_stdin(
         [
             "kubectl",
             "--kubeconfig",
             str(kubeconfig),
             "apply",
             "-f",
-            "https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/kind/deploy.yaml",
+            "-",
         ],
+        manifest,
         timeout=180,
     )
     if code != 0:
@@ -381,21 +418,24 @@ async def _warm_task_cluster(
         if code != 0:
             raise RuntimeError(f"kind create failed:\n{out}")
 
-        on_progress(2, "Connecting to cluster API…")
+        on_progress(2, "Loading cached images…")
+        await load_cached_images(cluster_name)
+
+        on_progress(3, "Connecting to cluster API…")
         await _connect_to_kind_network()
         await _export_internal_kubeconfig(cluster_name, kubeconfig)
         await _wait_api(kubeconfig, timeout=180)
 
-        on_progress(3, "Installing Calico networking…")
+        on_progress(4, "Installing Calico networking…")
         await _install_calico(kubeconfig)
 
-        on_progress(4, "Waiting for nodes to become Ready…")
+        on_progress(5, "Waiting for nodes to become Ready…")
         await _wait_nodes_ready(kubeconfig, timeout=300)
 
-        on_progress(5, "Installing ingress controller…")
+        on_progress(6, "Installing ingress controller…")
         await _install_ingress(kubeconfig)
 
-        on_progress(6, f"Preparing question “{task.title}”…")
+        on_progress(7, f"Preparing question “{task.title}”…")
         await run_setup(task, kubeconfig, cluster_name)
 
         state = TaskClusterState(cluster_name=cluster_name, kubeconfig=kubeconfig)

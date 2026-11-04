@@ -511,7 +511,7 @@ export default function App() {
                 <small>
                   {switching
                     ? "Previous work is kept. Returning to an opened question reconnects; a new question provisions a fresh cluster (a few minutes)."
-                    : "Each question gets its own kind cluster. First run can take several minutes while images are pulled."}
+                    : "Each question gets its own kind cluster. Cached images are loaded from this machine; the first cluster still takes a few minutes to boot."}
                 </small>
               </p>
               <div
