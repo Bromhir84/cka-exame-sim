@@ -18,7 +18,38 @@
     return "/api/docs/proxy?url=" + encodeURIComponent(abs);
   }
 
+  function unwrapSearchRedirect(abs) {
+    // Google CSE result links are https://www.google.com/url?q=<docs url>.
+    // google.com is not on the exam allowlist; open the docs URL instead.
+    var current = abs;
+    for (var n = 0; n < 3; n++) {
+      var u;
+      try {
+        u = new URL(current);
+      } catch (e) {
+        return current;
+      }
+      var host = u.hostname.toLowerCase();
+      if (host.indexOf("www.") === 0) host = host.slice(4);
+      var google =
+        host === "google.com" ||
+        host.indexOf("google.") === 0 ||
+        host.slice(-11) === ".google.com";
+      if (!google || u.pathname.replace(/\/+$/, "") !== "/url") return current;
+      var dest = "";
+      var keys = ["url", "q"];
+      for (var k = 0; k < keys.length && !dest; k++) {
+        var value = u.searchParams.get(keys[k]) || "";
+        if (/^https?:\/\//i.test(value)) dest = value;
+      }
+      if (!dest) return current;
+      current = dest;
+    }
+    return current;
+  }
+
   function go(abs) {
+    abs = unwrapSearchRedirect(abs);
     var proxied = proxyHref(abs);
     if (window.parent && window.parent !== window) {
       try {
