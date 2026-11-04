@@ -1,0 +1,13 @@
+checks:
+  - id: service
+    description: ClusterIP Service correct
+    weight: 40
+    script: checks/service.sh
+  - id: gateway
+    description: Gateway listener and class
+    weight: 30
+    script: checks/gateway.sh
+  - id: route
+    description: HTTPRoute host, path, and backend
+    weight: 30
+    script: checks/route.sh

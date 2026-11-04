@@ -1,9 +1,0 @@
-checks:
-  - id: host
-    description: Host rule
-    weight: 50
-    script: checks/host.sh
-  - id: svc
-    description: Backend service
-    weight: 50
-    script: checks/svc.sh

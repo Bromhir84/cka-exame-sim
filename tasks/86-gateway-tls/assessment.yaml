@@ -1,0 +1,13 @@
+checks:
+  - id: secret
+    description: TLS secret
+    weight: 30
+    script: checks/secret.sh
+  - id: gateway
+    description: HTTPS listener references the secret
+    weight: 40
+    script: checks/gateway.sh
+  - id: route
+    description: HTTPRoute on the https listener
+    weight: 30
+    script: checks/route.sh

@@ -4,7 +4,6 @@ import asyncio
 import shutil
 import socket
 import textwrap
-import urllib.request
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -13,9 +12,9 @@ from pathlib import Path
 
 from .cluster_images import (
     CALICO_MANIFEST,
-    INGRESS_MANIFEST,
+    GATEWAY_CLASS_NAME,
+    GATEWAY_CRD_MANIFEST,
     load_cached_images,
-    strip_image_digests,
 )
 from .config import EXAM_DURATION_MINUTES, KIND_IMAGE, SESSIONS_DIR
 from .grader import assemble_score, grade_task, run_setup
@@ -153,17 +152,9 @@ async def _run_stdin(cmd: list[str], stdin: str, timeout: int = 600) -> tuple[in
     return proc.returncode or 0, (out or b"").decode("utf-8", errors="replace")
 
 
-def _fetch_text(url: str) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": "cka-exam-sim"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        return resp.read().decode("utf-8")
-
-
 def _kind_config(path: Path) -> None:
-    # No hostPort mappings: publishing fixed host ports (8080/8443) collides with
-    # other local services and leftover containers. Ingress still works in-cluster
-    # via the kind ingress-nginx hostPorts on the node; use kubectl/curl from the
-    # exam terminal (not localhost:8080 on the Docker host).
+    # No hostPort mappings: fixed host ports collide with other local services.
+    # Questions are graded with kubectl from the exam terminal.
     path.write_text(
         textwrap.dedent(
             """\
@@ -171,12 +162,6 @@ def _kind_config(path: Path) -> None:
             apiVersion: kind.x-k8s.io/v1alpha4
             nodes:
               - role: control-plane
-                kubeadmConfigPatches:
-                  - |
-                    kind: InitConfiguration
-                    nodeRegistration:
-                      kubeletExtraArgs:
-                        node-labels: "ingress-ready=true"
               - role: worker
             networking:
               disableDefaultCNI: true
@@ -295,11 +280,56 @@ async def _install_calico(kubeconfig: Path) -> None:
     raise RuntimeError("Calico did not become ready")
 
 
-async def _install_ingress(kubeconfig: Path) -> None:
-    # Apply by tag. Digest pins do not match the single-platform image kind
-    # loaded from the host cache, and kubelet would pull them again.
-    manifest = strip_image_digests(
-        await asyncio.to_thread(_fetch_text, INGRESS_MANIFEST)
+async def _install_gateway_api(kubeconfig: Path) -> None:
+    """Install Gateway API CRDs and the exam GatewayClass.
+
+    There is no data-plane controller. Tasks are graded on Gateway and
+    HTTPRoute configuration, which kubectl can create once the CRDs exist.
+    """
+    code, out = await _run(
+        [
+            "kubectl",
+            "--kubeconfig",
+            str(kubeconfig),
+            "apply",
+            "--server-side",
+            "--force-conflicts",
+            "-f",
+            GATEWAY_CRD_MANIFEST,
+        ],
+        timeout=180,
+    )
+    if code != 0:
+        raise RuntimeError(f"failed to install Gateway API CRDs:\n{out}")
+    for name in (
+        "gatewayclasses.gateway.networking.k8s.io",
+        "gateways.gateway.networking.k8s.io",
+        "httproutes.gateway.networking.k8s.io",
+    ):
+        code, out = await _run(
+            [
+                "kubectl",
+                "--kubeconfig",
+                str(kubeconfig),
+                "wait",
+                "--for=condition=Established",
+                f"crd/{name}",
+                "--timeout=120s",
+            ],
+            timeout=150,
+        )
+        if code != 0:
+            raise RuntimeError(f"Gateway API CRD {name} was not established:\n{out}")
+    manifest = textwrap.dedent(
+        f"""\
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: GatewayClass
+        metadata:
+          name: {GATEWAY_CLASS_NAME}
+        spec:
+          controllerName: exam.cka.local/gateway
+          description: GatewayClass preinstalled for exam questions
+        """
     )
     code, out = await _run_stdin(
         [
@@ -311,28 +341,10 @@ async def _install_ingress(kubeconfig: Path) -> None:
             "-",
         ],
         manifest,
-        timeout=180,
+        timeout=60,
     )
     if code != 0:
-        raise RuntimeError(f"failed to install ingress-nginx:\n{out}")
-    await _run(
-        [
-            "kubectl",
-            "--kubeconfig",
-            str(kubeconfig),
-            "-n",
-            "ingress-nginx",
-            "wait",
-            "--namespace",
-            "ingress-nginx",
-            "--for=condition=Ready",
-            "pod",
-            "-l",
-            "app.kubernetes.io/component=controller",
-            "--timeout=180s",
-        ],
-        timeout=200,
-    )
+        raise RuntimeError(f"failed to install GatewayClass {GATEWAY_CLASS_NAME}:\n{out}")
 
 
 async def _cluster_container_ids(cluster_name: str) -> list[str]:
@@ -432,8 +444,8 @@ async def _warm_task_cluster(
         on_progress(5, "Waiting for nodes to become Ready…")
         await _wait_nodes_ready(kubeconfig, timeout=300)
 
-        on_progress(6, "Installing ingress controller…")
-        await _install_ingress(kubeconfig)
+        on_progress(6, "Installing Gateway API…")
+        await _install_gateway_api(kubeconfig)
 
         on_progress(7, f"Preparing question “{task.title}”…")
         await run_setup(task, kubeconfig, cluster_name)

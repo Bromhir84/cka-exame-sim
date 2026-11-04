@@ -1,0 +1,9 @@
+checks:
+  - id: host
+    description: Hostname and /shop path
+    weight: 50
+    script: checks/host.sh
+  - id: backend
+    description: Parent Gateway and Service
+    weight: 50
+    script: checks/backend.sh

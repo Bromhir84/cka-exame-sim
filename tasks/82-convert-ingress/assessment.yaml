@@ -1,0 +1,13 @@
+checks:
+  - id: gateway
+    description: Gateway matches the Ingress host
+    weight: 35
+    script: checks/gateway.sh
+  - id: route
+    description: HTTPRoute matches the Ingress backend
+    weight: 45
+    script: checks/route.sh
+  - id: removed
+    description: Ingress echo-ing deleted
+    weight: 20
+    script: checks/removed.sh

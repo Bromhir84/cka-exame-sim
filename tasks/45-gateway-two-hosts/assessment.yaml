@@ -1,0 +1,9 @@
+checks:
+  - id: alpha
+    description: alpha.cka.local route
+    weight: 50
+    script: checks/alpha.sh
+  - id: beta
+    description: beta.cka.local route
+    weight: 50
+    script: checks/beta.sh

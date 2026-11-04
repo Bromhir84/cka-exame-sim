@@ -6,10 +6,11 @@ ARG ETCD_VERSION=v3.5.16
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates bash bash-completion procps util-linux \
-    nano vim \
+    nano vim openssl \
     && command -v nano >/dev/null \
     && command -v vi >/dev/null \
     && command -v vim >/dev/null \
+    && command -v openssl >/dev/null \
     && rm -rf /var/lib/apt/lists/*
 
 # kubectl

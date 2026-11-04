@@ -89,28 +89,28 @@ bank:
   - 78-pod-lifecycle-hooks
   - 79-deploy-annotation
   # networking (22)
-  - 04-service-ingress
+  - 04-service-gateway
   - 05-network-policy
   - 19-nodeport-service
-  - 20-ingress-path
+  - 20-gateway-path
   - 21-networkpolicy-egress
   - 22-clusterip-multi-port
   - 23-service-labels
   - 43-headless-service
   - 44-deny-all-ingress
-  - 45-ingress-two-hosts
+  - 45-gateway-two-hosts
   - 46-externalname-service
   - 80-svc-nodeport-custom
   - 81-netpol-allow-frontend
-  - 82-ingress-rewrite
+  - 82-convert-ingress
   - 83-svc-session-affinity
   - 84-netpol-deny-egress
   - 85-endpoints-manual
-  - 86-ingress-tls-secret
+  - 86-gateway-tls
   - 87-svc-loadbalancer
   - 88-netpol-namespace-selector
   - 89-svc-port-name
-  - 90-ingress-multpath
+  - 90-gateway-multipath
   # storage (20)
   - 06-persistent-volume
   - 24-pvc-busybox
