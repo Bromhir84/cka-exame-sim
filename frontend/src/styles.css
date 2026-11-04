@@ -631,6 +631,10 @@ body {
   padding: 1.25rem 1.4rem 1.4rem;
 }
 
+.score-modal {
+  width: min(880px, 100%);
+}
+
 .score-total {
   font-size: 2rem;
   font-family: var(--mono);
@@ -711,6 +715,11 @@ body {
 }
 
 .check-scores li {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.check-score-row {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -741,6 +750,53 @@ body {
   gap: 0.5rem;
 }
 
+.review-panel {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.failure-block h4,
+.answer-md > h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.failure-block ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.failure-block li {
+  color: var(--text);
+}
+
+.failure-block strong {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.failure-block pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  background: #0f1419;
+  border-left: 3px solid var(--danger);
+  border-radius: 0.3rem;
+  padding: 0.55rem 0.7rem;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .answer-md {
   color: var(--text);
   background: #0f1419;
@@ -764,6 +820,8 @@ body {
 
 .answer-md pre {
   overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
   background: #0c1016;
   padding: 0.65rem 0.75rem;
   border-radius: 0.3rem;

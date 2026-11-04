@@ -625,8 +625,8 @@ export default function App() {
             <section className="lobby-hero">
               <h1>Exam complete</h1>
               <p>
-                Your cluster has been torn down. Review your score and answers,
-                then start another attempt when ready.
+                Your cluster has been torn down. Review your score, what missed,
+                and the solutions, then start another attempt when ready.
               </p>
               <button
                 type="button"
