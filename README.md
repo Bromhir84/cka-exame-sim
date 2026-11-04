@@ -24,7 +24,7 @@ You can also choose a **single domain** in the lobby to practice every question 
 
 - Docker Engine or Docker Desktop
 - ~8 GB free RAM for the first question cluster; each additional opened question keeps another kind cluster (RAM adds up if you open many)
-- A couple of GB of disk for images cached at install (kind node, Calico, ingress-nginx, `nginx:1.27`, `busybox:1.36`)
+- A couple of GB of disk for images cached at install (kind node, Calico, `nginx:1.27`, `busybox:1.36`)
 
 ## Quick start
 
@@ -67,12 +67,12 @@ docker compose up --build -d
 docker compose exec backend python -m app.preload_images
 ```
 
-The installers run that preload for you. It pulls the kind node image plus Calico, ingress-nginx, `nginx:1.27`, and `busybox:1.36` into Docker once. Each question cluster then loads those local images instead of downloading them again.
+The installers run that preload for you. It pulls the kind node image plus Calico, `nginx:1.27`, and `busybox:1.36` into Docker once. Each question cluster then loads those local images instead of downloading them again. Gateway API CRDs are applied when the cluster starts.
 
 - UI: http://localhost:5173
 - API: http://localhost:8000
 
-Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, ingress). The first cluster still takes a few minutes to boot. Then work in the **Terminal** and **Docs** tabs. Click **End Exam** (or wait for the timer) for your score.
+Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, Gateway API). The first cluster still takes a few minutes to boot. Then work in the **Terminal** and **Docs** tabs. Click **End Exam** (or wait for the timer) for your score.
 
 The exam workspace includes:
 

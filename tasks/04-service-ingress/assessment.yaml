@@ -1,9 +1,0 @@
-checks:
-  - id: service
-    description: ClusterIP Service correct
-    weight: 50
-    script: checks/service.sh
-  - id: ingress
-    description: Ingress host/class/backend
-    weight: 50
-    script: checks/ingress.sh

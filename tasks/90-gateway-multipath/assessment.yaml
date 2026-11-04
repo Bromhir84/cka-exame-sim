@@ -1,0 +1,9 @@
+checks:
+  - id: host
+    description: Hostname and parent Gateway
+    weight: 30
+    script: checks/host.sh
+  - id: paths
+    description: Both path backends
+    weight: 70
+    script: checks/paths.sh

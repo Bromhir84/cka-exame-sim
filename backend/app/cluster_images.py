@@ -1,8 +1,8 @@
 """Images every question cluster needs, cached on the Docker host.
 
 kind nodes keep their own containerd store. A host ``docker pull`` is invisible
-to them, so each new cluster would download Calico, ingress-nginx, and the
-workload images again. Install pulls this list once; cluster setup streams
+to them, so each new cluster would download Calico and the workload images
+again. Install pulls this list once; cluster setup streams
 each image into the node with ``ctr images import`` before those pods are
 created. ``kind load`` is not used. With the containerd image store, ``docker
 save`` writes the full multi-arch index but only the blobs for the platform
@@ -34,11 +34,15 @@ CALICO_MANIFEST = (
     f"{CALICO_VERSION}/manifests/calico.yaml"
 )
 
-INGRESS_GIT_REF = "controller-v1.11.3"
-INGRESS_MANIFEST = (
-    "https://raw.githubusercontent.com/kubernetes/ingress-nginx/"
-    f"{INGRESS_GIT_REF}/deploy/static/provider/kind/deploy.yaml"
+# Standard-channel CRDs (Gateway, GatewayClass, HTTPRoute). No controller
+# image: questions are graded on the objects, and GatewayClass nginx is
+# created after these CRDs are established.
+GATEWAY_API_VERSION = "v1.4.0"
+GATEWAY_CRD_MANIFEST = (
+    "https://github.com/kubernetes-sigs/gateway-api/releases/download/"
+    f"{GATEWAY_API_VERSION}/standard-install.yaml"
 )
+GATEWAY_CLASS_NAME = "nginx"
 
 
 @dataclass(frozen=True)
@@ -66,14 +70,6 @@ CACHED_IMAGES: tuple[CachedImage, ...] = (
     CachedImage("docker.io/calico/cni:v3.28.2"),
     CachedImage("docker.io/calico/node:v3.28.2"),
     CachedImage("docker.io/calico/kube-controllers:v3.28.2"),
-    CachedImage(
-        "registry.k8s.io/ingress-nginx/controller:v1.11.3",
-        "sha256:d56f135b6462cfc476447cfe564b83a45e8bb7da2774963b00d12161112270b7",
-    ),
-    CachedImage(
-        "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.4.4",
-        "sha256:a9f03b34a3cbfbb26d103a14046ab2c5130a80c3d69d526ff8063d2b37b9fd3f",
-    ),
     # Workload images used by the task bank (setup and candidate manifests).
     CachedImage("nginx:1.27"),
     CachedImage("busybox:1.36"),
@@ -117,10 +113,9 @@ _DIGEST_PIN = re.compile(r"@sha256:[a-f0-9]{64}")
 def strip_image_digests(manifest: str) -> str:
     """Drop ``@sha256`` pins so kubelet looks the image up by tag.
 
-    The ingress manifest pins a multi-arch index digest. The image imported
-    into the node is the host platform image, whose digest is different, and a
-    pin that does not match is pulled again. The tag still names the digest
-    we pulled.
+    A multi-arch index digest does not match the single-platform image loaded
+    into the node, and a pin that does not match is pulled again. The tag
+    still names the image that was pulled.
     """
     return _DIGEST_PIN.sub("", manifest)
 

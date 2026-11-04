@@ -1,9 +1,0 @@
-checks:
-  - id: secret
-    description: TLS secret
-    weight: 40
-    script: checks/secret.sh
-  - id: ing
-    description: Ingress TLS host
-    weight: 60
-    script: checks/ing.sh

@@ -1,9 +1,0 @@
-checks:
-  - id: host
-    description: Host
-    weight: 30
-    script: checks/host.sh
-  - id: paths
-    description: Both backends
-    weight: 70
-    script: checks/paths.sh

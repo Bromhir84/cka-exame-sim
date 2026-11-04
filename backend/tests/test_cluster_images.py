@@ -37,11 +37,13 @@ class ClusterImageCacheTests(unittest.TestCase):
         self.assertEqual(refs[0], KIND_IMAGE)
         self.assertNotIn(KIND_IMAGE, [image.name for image in CACHED_IMAGES])
 
-        by_tag = {item.tag_as: item.ref for item in plan if item.tag_as}
-        controller = "registry.k8s.io/ingress-nginx/controller:v1.11.3"
-        certgen = "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.4.4"
-        self.assertTrue(by_tag[controller].startswith(controller + "@sha256:"))
-        self.assertTrue(by_tag[certgen].startswith(certgen + "@sha256:"))
+        self.assertIn("docker.io/calico/node:v3.28.2", refs)
+        self.assertIn("nginx:1.27", refs)
+        self.assertNotIn(
+            "registry.k8s.io/ingress-nginx/controller:v1.11.3",
+            [image.name for image in CACHED_IMAGES],
+        )
+        self.assertFalse(any(item.tag_as for item in plan))
 
     def test_cached_set_matches_cluster_manifests_and_task_images(self):
         names = {image.name for image in CACHED_IMAGES}
@@ -50,6 +52,10 @@ class ClusterImageCacheTests(unittest.TestCase):
         self.assertIn(f"docker.io/calico/kube-controllers:{CALICO_VERSION}", names)
         self.assertIn("nginx:1.27", names)
         self.assertIn("busybox:1.36", names)
+        self.assertNotIn("registry.k8s.io/ingress-nginx/controller:v1.11.3", names)
+        self.assertNotIn(
+            "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.4.4", names
+        )
         # These tags are supposed to fail image pull in troubleshooting tasks.
         self.assertNotIn("nginx:1.27-notreal", names)
         self.assertNotIn("nginx:1.27-this-tag-does-not-exist", names)
