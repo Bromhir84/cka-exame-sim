@@ -63,6 +63,8 @@ export type CheckResult = {
   passed: boolean;
   earned: number;
   output?: string;
+  /** Why a failed check missed, including the value found on the cluster. */
+  failure?: string;
 };
 
 export type ScoreReport = {

@@ -1,17 +1,43 @@
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import type { ScoreReport as Score } from "../api";
+import type { CheckResult, ScoreReport as Score } from "../api";
 
 type Props = {
   score: Score;
   onClose: () => void;
 };
 
+type Question = Score["results"][number];
+
+function checkDetail(check: CheckResult): string {
+  if (check.passed) return "";
+  return (check.failure || check.output || "").trim();
+}
+
+function mistakes(result: Question): CheckResult[] {
+  return (result.checks ?? []).filter((check) => checkDetail(check));
+}
+
+function wasGraded(result: Question): boolean {
+  return (result.checks ?? []).some((check) => check.id !== "skipped");
+}
+
 export default function ScoreReport({ score, onClose }: Props) {
-  const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>({});
-  const answerIds = score.results.filter((r) => r.answers).map((r) => r.id);
+  const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>(() => {
+    const next: Record<string, boolean> = {};
+    for (const result of score.results) {
+      const missed = result.earned !== result.weight && wasGraded(result);
+      if (missed && (result.answers || mistakes(result).length)) {
+        next[result.id] = true;
+      }
+    }
+    return next;
+  });
+  const reviewIds = score.results
+    .filter((result) => result.answers || mistakes(result).length > 0)
+    .map((result) => result.id);
   const allOpen =
-    answerIds.length > 0 && answerIds.every((id) => openAnswers[id]);
+    reviewIds.length > 0 && reviewIds.every((id) => openAnswers[id]);
 
   const toggleAllAnswers = () => {
     if (allOpen) {
@@ -19,7 +45,7 @@ export default function ScoreReport({ score, onClose }: Props) {
       return;
     }
     const next: Record<string, boolean> = {};
-    for (const id of answerIds) next[id] = true;
+    for (const id of reviewIds) next[id] = true;
     setOpenAnswers(next);
   };
 
@@ -57,7 +83,7 @@ export default function ScoreReport({ score, onClose }: Props) {
 
         <div className="score-answers-toolbar">
           <h3>By question</h3>
-          {answerIds.length > 0 && (
+          {reviewIds.length > 0 && (
             <button type="button" className="btn" onClick={toggleAllAnswers}>
               {allOpen ? "Hide all solutions" : "Show all solutions"}
             </button>
@@ -79,17 +105,19 @@ export default function ScoreReport({ score, onClose }: Props) {
                 <ul className="check-scores">
                   {r.checks.map((c) => (
                     <li key={c.id} className={c.passed ? "ok" : "no"}>
-                      <span>
-                        {c.passed ? "✓" : "✗"} {c.description}
-                      </span>
-                      <span>
-                        {c.earned}/{c.weight}
-                      </span>
+                      <div className="check-score-row">
+                        <span>
+                          {c.passed ? "✓" : "✗"} {c.description}
+                        </span>
+                        <span>
+                          {c.earned}/{c.weight}
+                        </span>
+                      </div>
                     </li>
                   ))}
                 </ul>
               )}
-              {r.answers && (
+              {(r.answers || mistakes(r).length > 0) && (
                 <div className="answer-block">
                   <button
                     type="button"
@@ -101,11 +129,35 @@ export default function ScoreReport({ score, onClose }: Props) {
                       }))
                     }
                   >
-                    {openAnswers[r.id] ? "Hide answer" : "Show answer"}
+                    {openAnswers[r.id]
+                      ? mistakes(r).length
+                        ? "Hide mistakes and solution"
+                        : "Hide solution"
+                      : mistakes(r).length
+                        ? "Show mistakes and solution"
+                        : "Show solution"}
                   </button>
                   {openAnswers[r.id] && (
-                    <div className="answer-md">
-                      <ReactMarkdown>{r.answers}</ReactMarkdown>
+                    <div className="review-panel">
+                      {mistakes(r).length > 0 && (
+                        <section className="failure-block">
+                          <h4>What went wrong</h4>
+                          <ul>
+                            {mistakes(r).map((c) => (
+                              <li key={c.id}>
+                                <strong>{c.description}</strong>
+                                <pre>{checkDetail(c)}</pre>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      )}
+                      {r.answers && (
+                        <section className="answer-md">
+                          <h4>Solution</h4>
+                          <ReactMarkdown>{r.answers}</ReactMarkdown>
+                        </section>
+                      )}
                     </div>
                   )}
                 </div>
