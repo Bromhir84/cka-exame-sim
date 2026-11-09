@@ -9,7 +9,7 @@ import termios
 
 from fastapi import WebSocket, WebSocketDisconnect
 
-from .session import SessionStatus, get_session
+from .session import SessionStatus, candidate_home, get_session
 
 
 def _set_winsize(fd: int, rows: int, cols: int) -> None:
@@ -60,15 +60,19 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
 
     await websocket.accept()
 
+    home = candidate_home(session)
+    home.mkdir(parents=True, exist_ok=True)
+
     env = os.environ.copy()
     env["KUBECONFIG"] = str(session.kubeconfig)
     env["TERM"] = "xterm-256color"
-    env["HOME"] = str(session.workdir)
+    env["HOME"] = str(home)
+    env["CANDIDATE_HOME"] = str(home)
     # Avoid non-interactive BASH_ENV sourcing surprises
     env.pop("BASH_ENV", None)
     env.pop("ENV", None)
 
-    bashrc = session.workdir / ".bashrc"
+    bashrc = home / ".bashrc"
     _write_bashrc(bashrc, session.cluster_name)
 
     master_fd, slave_fd = pty.openpty()
@@ -83,7 +87,7 @@ async def terminal_websocket(websocket: WebSocket, session_id: str) -> None:
         stdin=slave_fd,
         stdout=slave_fd,
         stderr=slave_fd,
-        cwd=str(session.workdir),
+        cwd=str(home),
         env=env,
         start_new_session=True,
     )

@@ -16,7 +16,7 @@ Pass hint: **66%** (same as the real exam).
 
 Each **full exam** randomly draws **16 questions** from a **112-question bank**, filling fixed domain slots so the weights above always apply (no repeats within a run).
 
-Each question runs on its **own kind cluster**. Use **Previous / Next** to move between questions — leaving a question parks its cluster (your work is preserved); returning reconnects. A question is provisioned the first time you open it. **Finish question** grades that item quietly, removes its cluster (frees RAM), and keeps the result hidden until **End Exam**, which grades any remaining open clusters and shows the full score report.
+Each question runs on its **own kind cluster** and its **own terminal home directory**. Use **Previous / Next** to move between questions — leaving a question parks its cluster and that home (your work is preserved); returning reconnects. Files you create in one question are not in the next question's home. A question is provisioned the first time you open it. **Finish question** grades that item quietly, removes its cluster (frees RAM), and keeps the result hidden until **End Exam**, which grades any remaining open clusters and shows the full score report.
 
 You can also choose a **single domain** in the lobby to practice every question in that domain (weights equalized to 100%).
 

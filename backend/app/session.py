@@ -40,6 +40,7 @@ class TaskClusterState:
 
     cluster_name: str
     kubeconfig: Path
+    home: Path
 
 
 @dataclass
@@ -155,8 +156,35 @@ def _cluster_name_for(session: ExamSession, task_id: str) -> str:
     return f"cka-{session.id}-{_task_index(session, task_id):02d}"
 
 
+def home_for(workdir: Path, task_id: str) -> Path:
+    """Candidate home directory for one question cluster."""
+    return workdir / "home" / task_id
+
+
+def kubeconfig_for(workdir: Path, task_id: str) -> Path:
+    return home_for(workdir, task_id) / ".kube" / "config"
+
+
+def prepare_candidate_home(workdir: Path, task_id: str) -> Path:
+    """Create the question home without removing files already stored there."""
+    home = home_for(workdir, task_id)
+    (home / ".kube").mkdir(parents=True, exist_ok=True)
+    return home
+
+
+def candidate_home(session: ExamSession) -> Path:
+    """Home directory of the cluster the terminal is attached to."""
+    task_id = session.active_task_id
+    if not task_id:
+        return session.workdir
+    state = session.task_clusters.get(task_id)
+    if state is not None:
+        return state.home
+    return home_for(session.workdir, task_id)
+
+
 def _kubeconfig_for(session: ExamSession, task_id: str) -> Path:
-    return session.workdir / f"kubeconfig-{task_id}"
+    return kubeconfig_for(session.workdir, task_id)
 
 
 def _bind_active_cluster(session: ExamSession, task_id: str) -> TaskClusterState:
@@ -472,8 +500,8 @@ async def _warm_task_cluster(
         return session.task_clusters[task.id]
 
     cluster_name = _cluster_name_for(session, task.id)
+    home = prepare_candidate_home(session.workdir, task.id)
     kubeconfig = _kubeconfig_for(session, task.id)
-    session.workdir.mkdir(parents=True, exist_ok=True)
     kind_cfg = session.workdir / "kind.yaml"
     _kind_config(kind_cfg)
 
@@ -518,9 +546,11 @@ async def _warm_task_cluster(
         await _install_gateway_api(kubeconfig)
 
         on_progress(7, f"Preparing question “{task.title}”…")
-        await run_setup(task, kubeconfig, cluster_name)
+        await run_setup(task, kubeconfig, cluster_name, home=home)
 
-        state = TaskClusterState(cluster_name=cluster_name, kubeconfig=kubeconfig)
+        state = TaskClusterState(
+            cluster_name=cluster_name, kubeconfig=kubeconfig, home=home
+        )
         session.task_clusters[task.id] = state
         return state
     except asyncio.CancelledError:
@@ -709,7 +739,9 @@ async def _grade_task_cluster(session: ExamSession, task_id: str) -> None:
     task = _get_task(session, task_id)
     await _set_cluster_paused(state.cluster_name, False)
     await _wait_api(state.kubeconfig, timeout=60)
-    result = await grade_task(task, state.kubeconfig, state.cluster_name)
+    result = await grade_task(
+        task, state.kubeconfig, state.cluster_name, home=state.home
+    )
     session.task_results[task.id] = result
 
 
@@ -739,7 +771,7 @@ async def create_session(domain: str | None = None) -> ExamSession:
         status=SessionStatus.PROVISIONING,
         cluster_name="",
         workdir=workdir,
-        kubeconfig=workdir / f"kubeconfig-{first.id}",
+        kubeconfig=kubeconfig_for(workdir, first.id),
         created_at=datetime.now(timezone.utc),
         tasks=tasks,
         domain=domain,
