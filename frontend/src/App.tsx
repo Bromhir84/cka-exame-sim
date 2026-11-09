@@ -6,6 +6,7 @@ import {
   finishSessionTask,
   getSession,
   getSessionTasks,
+  setScreenLockHold,
   startSession,
   type BankSummary,
   type ScoreReport as Score,
@@ -53,6 +54,10 @@ export default function App() {
   const leftPctRef = useRef(leftPct);
   const toastId = useRef(1);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [clockHeld, setClockHeld] = useState(false);
+  const hiddenAtRef = useRef(0);
+  const examStatusRef = useRef(session?.status);
+  examStatusRef.current = session?.status;
 
   const pushToast = useCallback((message: string, kind?: "ok" | "error") => {
     const id = toastId.current++;
@@ -295,6 +300,84 @@ export default function App() {
     setError(null);
   }, []);
 
+  useEffect(() => {
+    if (phase !== "exam" || !session) return;
+    const sessionId = session.session_id;
+    let alive = true;
+
+    const syncLock = (hold: boolean) => {
+      const status = examStatusRef.current;
+      if (status === "grading" || status === "done" || status === "error") return;
+      if (hold) {
+        if (!hiddenAtRef.current) hiddenAtRef.current = Date.now();
+        setClockHeld(true);
+        void fetch(`/api/sessions/${sessionId}/screen-lock`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hold: true, extend_seconds: 0 }),
+          keepalive: true,
+        });
+        return;
+      }
+      const started = hiddenAtRef.current;
+      hiddenAtRef.current = 0;
+      const waited = started ? Math.max(0, (Date.now() - started) / 1000) : 0;
+      void (async () => {
+        let restored: Session | null = null;
+        let missing = false;
+        for (let attempt = 0; attempt < 5 && alive; attempt += 1) {
+          try {
+            restored = await setScreenLockHold(sessionId, false, waited);
+            break;
+          } catch (e) {
+            const msg = String((e as Error).message || e).toLowerCase();
+            if (msg.includes("session not found")) {
+              missing = true;
+              break;
+            }
+            await new Promise((r) => window.setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
+        if (!alive) return;
+        if (missing) {
+          returnToStart();
+          setError(
+            "The exam session ended while the computer was locked. Start again."
+          );
+          return;
+        }
+        if (restored) setSession(restored);
+        else if (waited > 0) {
+          setSession((prev) => {
+            if (!prev?.ends_at) return prev;
+            const ends = new Date(
+              new Date(prev.ends_at).getTime() + waited * 1000
+            ).toISOString();
+            return {
+              ...prev,
+              ends_at: ends,
+              remaining_seconds: Math.round((prev.remaining_seconds ?? 0) + waited),
+            };
+          });
+        }
+        setClockHeld(false);
+      })();
+    };
+
+    if (document.visibilityState === "hidden") syncLock(true);
+    const onVis = () => syncLock(document.visibilityState === "hidden");
+    const onShow = () => {
+      if (document.visibilityState === "visible") syncLock(false);
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      alive = false;
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("pageshow", onShow);
+    };
+  }, [phase, session?.session_id, returnToStart]);
+
   const finish = useCallback(async () => {
     if (!session || ending) return;
     setEnding(true);
@@ -384,7 +467,7 @@ export default function App() {
           <Timer
             endsAt={session.ends_at}
             remainingSeconds={session.remaining_seconds}
-            paused={session.status === "switching"}
+            paused={session.status === "switching" || clockHeld}
             onExpire={finish}
           />
         )}

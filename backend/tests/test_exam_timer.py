@@ -15,6 +15,7 @@ from app.session import (  # noqa: E402
     _pause_exam_timer,
     _resume_exam_timer,
     session_public,
+    set_screen_lock_hold,
 )
 
 
@@ -68,6 +69,54 @@ class ExamTimerTests(unittest.TestCase):
         first = session.timer_paused_at
         _pause_exam_timer(session)
         self.assertEqual(session.timer_paused_at, first)
+
+    def test_screen_lock_gives_the_wait_back(self) -> None:
+        session = _session()
+        deadline = session.ends_at
+        assert deadline is not None
+        set_screen_lock_hold(session, True)
+        self.assertTrue(session_public(session)["timer_paused"])
+        session.timer_paused_at = datetime.now(timezone.utc) - timedelta(seconds=15)
+        set_screen_lock_hold(session, False, extend_seconds=15)
+        assert session.ends_at is not None
+        added = (session.ends_at - deadline).total_seconds()
+        self.assertGreaterEqual(added, 14)
+        self.assertLess(added, 20)
+        self.assertFalse(session_public(session)["timer_paused"])
+
+    def test_missed_lock_request_still_credits_the_gap(self) -> None:
+        session = _session()
+        deadline = session.ends_at
+        assert deadline is not None
+        set_screen_lock_hold(session, False, extend_seconds=30)
+        assert session.ends_at is not None
+        self.assertAlmostEqual((session.ends_at - deadline).total_seconds(), 30, delta=0.1)
+
+    def test_lock_credit_is_capped(self) -> None:
+        session = _session()
+        deadline = session.ends_at
+        assert deadline is not None
+        set_screen_lock_hold(session, False, extend_seconds=100 * 3600)
+        assert session.ends_at is not None
+        self.assertEqual((session.ends_at - deadline).total_seconds(), 12 * 3600)
+
+    def test_unlock_during_a_question_switch_stays_paused(self) -> None:
+        session = _session(status=SessionStatus.SWITCHING)
+        _pause_exam_timer(session)
+        set_screen_lock_hold(session, True)
+        set_screen_lock_hold(session, False, extend_seconds=50)
+        self.assertIn("switching", session.timer_pause_reasons)
+        self.assertNotIn("hidden", session.timer_pause_reasons)
+        self.assertIsNotNone(session.timer_paused_at)
+        self.assertTrue(session_public(session)["timer_paused"])
+
+    def test_grading_ignores_a_screen_lock(self) -> None:
+        session = _session(status=SessionStatus.GRADING)
+        deadline = session.ends_at
+        set_screen_lock_hold(session, True)
+        set_screen_lock_hold(session, False, extend_seconds=40)
+        self.assertEqual(session.ends_at, deadline)
+        self.assertFalse(session.timer_pause_reasons)
 
     def test_ready_and_grading_keep_the_clock_running(self) -> None:
         for status in (SessionStatus.READY, SessionStatus.GRADING):
