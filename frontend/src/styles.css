@@ -37,8 +37,14 @@ body {
 
 .app {
   height: 100%;
-  display: grid;
-  grid-template-rows: auto auto 1fr;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app > main {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .topbar {
@@ -160,7 +166,9 @@ body {
   padding: 2.5rem 1.5rem 3rem;
   display: grid;
   gap: 2rem;
+  align-content: start;
   max-width: 960px;
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -275,8 +283,11 @@ body {
 
 .exam {
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(320px, 42%) 1fr;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .exam.exam-shell {
@@ -285,8 +296,11 @@ body {
 
 .task-panel {
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 220px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   border-right: 1px solid var(--line);
   background: var(--bg-panel);
 }
