@@ -14,6 +14,26 @@ function checkDetail(check: CheckResult): string {
   return (check.failure || check.output || "").trim();
 }
 
+function FailureDetail({ text }: { text: string }) {
+  const notes: string[] = [];
+  const body: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.startsWith("Likely mistake:")) notes.push(line);
+    else body.push(line);
+  }
+  const prose = body.join("\n").trim();
+  return (
+    <>
+      {prose ? <pre>{prose}</pre> : null}
+      {notes.map((note, index) => (
+        <p className="likely-mistake" key={`${index}-${note}`}>
+          {note}
+        </p>
+      ))}
+    </>
+  );
+}
+
 function mistakes(result: Question): CheckResult[] {
   return (result.checks ?? []).filter((check) => checkDetail(check));
 }
@@ -146,7 +166,7 @@ export default function ScoreReport({ score, onClose }: Props) {
                             {mistakes(r).map((c) => (
                               <li key={c.id}>
                                 <strong>{c.description}</strong>
-                                <pre>{checkDetail(c)}</pre>
+                                <FailureDetail text={checkDetail(c)} />
                               </li>
                             ))}
                           </ul>

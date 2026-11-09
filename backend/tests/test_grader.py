@@ -30,6 +30,7 @@ class ExplainCheckFailureTests(unittest.TestCase):
         text = explain_check_failure("", trace)
         self.assertIn("Expected `nginx:1.27`", text)
         self.assertIn("`nginx:1.25` (IMG)", text)
+        self.assertIn("has `5` where `nginx:1.27` has `7`", text)
 
     def test_grep_shows_the_object_that_was_missing_the_text(self):
         trace = """\
@@ -139,4 +140,4 @@ class LiveCheckTests(unittest.TestCase):
         self.assertFalse(result["checks"][0]["passed"])
         self.assertIn("nginx:1.25", result["checks"][0]["failure"])
         self.assertIn("nginx:1.27", result["checks"][0]["failure"])
-        self.assertEqual(result["checks"][0]["failure"].count("nginx:1.25") >= 1, True)
+        self.assertIn("has `5` where `nginx:1.27` has `7`", result["checks"][0]["failure"])
