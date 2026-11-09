@@ -58,12 +58,12 @@ git clone https://github.com/Bromhir84/cka-exame-sim.git; Set-Location cka-exame
 install.bat
 ```
 
-On start, `install.bat` / the one-line installers `git fetch` and pull updates from GitHub when available (skipped quietly if offline).
+On start, the installers fetch `origin/main` and check that commit out. They do not keep an older copy running if GitHub cannot be reached. The UI image is rebuilt and the containers are recreated. Reload the page (or use the window the installer opens). The header shows `build` plus the short commit id of the version you are running.
 
 **Any OS:**
 
 ```bash
-docker compose up --build -d
+GIT_SHA=$(git rev-parse HEAD) docker compose up --build --force-recreate -d
 docker compose exec backend python -m app.preload_images
 ```
 

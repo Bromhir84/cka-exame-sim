@@ -29,7 +29,10 @@ services:
       start_period: 15s
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
     ports:
       - "5173:80"
     depends_on:

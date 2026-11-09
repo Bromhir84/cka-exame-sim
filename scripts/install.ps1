@@ -50,26 +50,16 @@ if ((Invoke-Native { docker info }) -ne 0) {
 }
 
 if (Test-Path (Join-Path $Target ".git")) {
-  Write-Host "==> Checking for updates at $Target"
+  Write-Host "==> Updating $Target to origin/main"
   Push-Location $Target
   try {
-    $branch = Get-NativeText { git rev-parse --abbrev-ref HEAD }
-    if (-not $branch) { $branch = "main" }
-    if ((Invoke-Native { git fetch origin $branch }) -ne 0) {
-      Write-Host "    Could not reach origin — continuing with local copy." -ForegroundColor Yellow
-    } else {
-      $local = Get-NativeText { git rev-parse HEAD }
-      $remote = Get-NativeText { git rev-parse "origin/$branch" }
-      if ($local -and $remote -and $local -ne $remote) {
-        Write-Host "    Update available — pulling origin/$branch..."
-        if ((Invoke-Native { git pull --ff-only origin $branch }) -ne 0) {
-          Write-Host "    [WARN] git pull failed; continuing with local copy." -ForegroundColor Yellow
-        } else {
-          Write-Host "    Updated successfully." -ForegroundColor Green
-        }
-      } else {
-        Write-Host "    Already up to date."
-      }
+    if ((Invoke-Native { git fetch origin main }) -ne 0) {
+      throw "Could not fetch origin/main. Refusing to start an older copy."
+    }
+    # The install directory is the running app. Local edits must not keep the old UI.
+    Write-Host "    Checking out origin/main. Local changes in this folder are replaced."
+    if ((Invoke-Native { git checkout -f -B main origin/main }) -ne 0) {
+      throw "Could not check out origin/main."
     }
   } finally {
     Pop-Location
@@ -82,11 +72,17 @@ if (Test-Path (Join-Path $Target ".git")) {
 }
 
 Set-Location $Target
-Write-Host "==> Building images (backend, frontend)…"
-docker compose build
-if ($LASTEXITCODE -ne 0) { throw "docker compose build failed" }
+$env:GIT_SHA = Get-NativeText { git rev-parse HEAD }
+if (-not $env:GIT_SHA) { throw "Could not read the installed commit" }
+$short = $env:GIT_SHA.Substring(0, [Math]::Min(7, $env:GIT_SHA.Length))
+Write-Host "==> Building version $short"
+Write-Host "    Rebuilding the UI image so the exam clock fix is the one that runs."
+docker compose build --no-cache frontend
+if ($LASTEXITCODE -ne 0) { throw "docker compose build frontend failed" }
+docker compose build backend
+if ($LASTEXITCODE -ne 0) { throw "docker compose build backend failed" }
 Write-Host "==> Starting stack…"
-docker compose up -d
+docker compose up -d --force-recreate
 if ($LASTEXITCODE -ne 0) { throw "docker compose up failed" }
 
 Write-Host "==> Waiting for UI + API (http://localhost:5173/api/health)…"
@@ -112,13 +108,14 @@ docker compose exec -T backend python -m app.preload_images
 if ($LASTEXITCODE -ne 0) { throw "Failed to pull cluster images. Check: docker compose logs backend" }
 
 Write-Host ""
-Write-Host "Ready." -ForegroundColor Green
+Write-Host "Ready (build $short)." -ForegroundColor Green
 Write-Host "  UI:  http://localhost:5173"
 Write-Host "  API: http://localhost:8000"
+Write-Host "Reload the exam page if it was already open. The header should say build $short."
 Write-Host "Cluster images are cached. New clusters load them instead of downloading again."
 Write-Host "The first cluster still takes a few minutes to boot."
 Write-Host "Stop with:  docker compose down"
-Start-Process "http://localhost:5173"
+Start-Process "http://localhost:5173/?v=$short"
 
 if ($null -ne $prevNative) {
   $PSNativeCommandUseErrorActionPreference = $prevNative

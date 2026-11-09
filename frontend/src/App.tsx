@@ -554,7 +554,11 @@ export default function App() {
           <span className="brand-mark">CKA</span>
           <div>
             <strong>Exam Simulator</strong>
-            <small>MVP practice environment</small>
+            <small>
+              {import.meta.env.VITE_GIT_SHA
+                ? `build ${import.meta.env.VITE_GIT_SHA.slice(0, 7)}`
+                : "MVP practice environment"}
+            </small>
           </div>
         </div>
 
