@@ -1703,16 +1703,25 @@ exit 0""",
     ),
     (
         "89-svc-port-name",
-        "Service named port",
+        "Service targetPort by name",
         "networking",
-        """# Named ports
+        """# Service targetPort by name
 
-In namespace `net-name89` create Service `named` selecting `app=api`, with port name `http`, port 8080, targetPort `http` (string). Deployment `api` should expose containerPort name `http` on 8080 (`nginx:1.27` is fine if you map 8080—or use busybox nc; simplest: Deployment with containerPort name http = 80 and Service port 80 name http).
+In namespace `net-name89`, create Deployment `api` and ClusterIP Service `named`.
 
-Use: containerPort **80** named `http`, Service port **80** named `http`, targetPort `http`.""",
+Deployment `api` uses image `nginx:1.27`, label `app=api`, and one container port:
+
+- name `http`
+- containerPort **80**
+
+Service `named` selects `app=api` and exposes one port:
+
+- name `http`
+- port **80**
+- targetPort `http` (the container port's name, not the number 80)""",
         ns_setup("net-name89"),
         """## Goal
-Named targetPort.
+Point Service `named` at Deployment `api` using port name `http`.
 
 ## Steps
 ```bash
@@ -1752,7 +1761,7 @@ EOF
         [
             (
                 "svc",
-                "Service named targetPort",
+                "Service port named http, targetPort http",
                 60,
                 """#!/usr/bin/env bash
 set -euo pipefail
@@ -1764,7 +1773,7 @@ exit 0""",
             ),
             (
                 "pod",
-                "containerPort name",
+                "Container port named http",
                 40,
                 """#!/usr/bin/env bash
 set -euo pipefail

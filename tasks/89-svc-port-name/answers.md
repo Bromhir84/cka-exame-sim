@@ -1,5 +1,5 @@
 ## Goal
-Named targetPort.
+Point Service `named` at Deployment `api` using port name `http`.
 
 ## Steps
 ```bash
