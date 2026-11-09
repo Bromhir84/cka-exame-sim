@@ -84,10 +84,13 @@ _MAX_SCREEN_LOCK_CREDIT = 12 * 60 * 60
 
 
 def hold_exam_timer(session: ExamSession, reason: str) -> None:
-    """Freeze the deadline. Several reasons can hold it at once."""
-    if reason in session.timer_pause_reasons:
-        return
-    if not session.timer_pause_reasons and session.ends_at is not None:
+    """Freeze the deadline. Several reasons can hold it at once.
+
+    A reason can already be recorded while the stamp is missing (the hold
+    started before ``ends_at`` existed). Fill the stamp in that case so the
+    clock cannot keep counting.
+    """
+    if session.ends_at is not None and session.timer_paused_at is None:
         session.timer_paused_at = datetime.now(timezone.utc)
     session.timer_pause_reasons.add(reason)
 
@@ -112,7 +115,13 @@ def _pause_exam_timer(session: ExamSession) -> None:
 
 
 def _resume_exam_timer(session: ExamSession) -> None:
-    """Give back the time spent waiting for a cluster."""
+    """Give back the time spent waiting for a cluster.
+
+    The switching screen is still up while status is SWITCHING, so the clock
+    stays frozen until the caller moves off that screen.
+    """
+    if session.status == SessionStatus.SWITCHING:
+        return
     release_exam_timer(session, "switching")
 
 
@@ -795,6 +804,7 @@ async def _switch_task(session_id: str, task_id: str) -> None:
             return
         session.status = SessionStatus.SWITCHING
         session.error = None
+        _pause_exam_timer(session)
         leaving_id = session.active_task_id
         try:
             session.progress_step = 1
@@ -813,12 +823,12 @@ async def _switch_task(session_id: str, task_id: str) -> None:
                 await _reconnect_task_cluster(session, task)
             else:
                 await _provision_task_cluster(session, task)
-            _resume_exam_timer(session)
             session.status = SessionStatus.READY
+            _resume_exam_timer(session)
             _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
-            _resume_exam_timer(session)
             session.status = SessionStatus.ERROR
+            _resume_exam_timer(session)
             session.error = str(exc)
             session.progress_label = "Question switch failed"
             # Keep other question clusters; only drop a half-created target if needed
@@ -892,6 +902,7 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
             return
         session.status = SessionStatus.SWITCHING
         session.error = None
+        _pause_exam_timer(session)
         was_active = session.active_task_id == task_id
         try:
             session.progress_total = FINISH_STEPS
@@ -930,13 +941,13 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
                     )
             else:
                 session.progress_label = "Question finished (grade saved)"
-            _resume_exam_timer(session)
             session.status = SessionStatus.READY
+            _resume_exam_timer(session)
             if session.active_task_id:
                 _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
-            _resume_exam_timer(session)
             session.status = SessionStatus.ERROR
+            _resume_exam_timer(session)
             session.error = str(exc)
             session.progress_label = "Finish question failed"
 
@@ -1069,6 +1080,13 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
 
 def session_public(session: ExamSession) -> dict:
     now = datetime.now(timezone.utc)
+    # The switching screen must freeze the deadline even if the hold was lost.
+    if (
+        session.status == SessionStatus.SWITCHING
+        and session.ends_at is not None
+        and session.timer_paused_at is None
+    ):
+        hold_exam_timer(session, "switching")
     # Switching screen, or the page is hidden because the computer is locked.
     timer_paused = (
         session.timer_paused_at is not None

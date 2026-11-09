@@ -55,9 +55,32 @@ export default function App() {
   const toastId = useRef(1);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [clockHeld, setClockHeld] = useState(false);
+  const [clusterWait, setClusterWait] = useState(false);
   const hiddenAtRef = useRef(0);
   const examStatusRef = useRef(session?.status);
   examStatusRef.current = session?.status;
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const phaseIsFinished = () => phaseRef.current === "finished";
+  const pollGen = useRef(0);
+  const sawSwitchingRef = useRef(false);
+
+  const noteClusterSession = (next: Session) => {
+    if (next.status === "switching") sawSwitchingRef.current = true;
+    if (
+      next.status === "done" ||
+      next.status === "error" ||
+      (next.status === "ready" && sawSwitchingRef.current)
+    ) {
+      sawSwitchingRef.current = false;
+      setClusterWait(false);
+    }
+  };
+
+  const beginClusterWait = () => {
+    sawSwitchingRef.current = false;
+    setClusterWait(true);
+  };
 
   const pushToast = useCallback((message: string, kind?: "ok" | "error") => {
     const id = toastId.current++;
@@ -114,19 +137,48 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return;
+    if (phaseIsFinished() || session.status === "done") return;
     const prefetchWatch = !!session.prefetch?.task_id;
     const heavy =
-      session.status === "provisioning" || session.status === "switching";
+      session.status === "provisioning" ||
+      session.status === "switching" ||
+      clusterWait;
     // Also poll lightly while ready so next-cluster prefetch labels refresh.
     if (!heavy && !(session.status === "ready" && prefetchWatch)) {
       return;
     }
+    const gen = ++pollGen.current;
     const id = window.setInterval(async () => {
       try {
         const s = await getSession(session.session_id);
+        if (gen !== pollGen.current) return;
+        if (phaseIsFinished()) return;
+        const current = examStatusRef.current;
+        if (
+          (current === "grading" || current === "done") &&
+          s.status !== "grading" &&
+          s.status !== "done" &&
+          s.status !== "error"
+        ) {
+          return;
+        }
+        const arrivedFromWait =
+          sawSwitchingRef.current ||
+          session.status === "switching" ||
+          session.status === "provisioning";
+        noteClusterSession(s);
+        if (s.status === "done" && s.score) {
+          setScore(s.score);
+          setPhase("finished");
+        }
         setSession(s);
-        if (heavy && s.status === "ready") {
+        if (
+          arrivedFromWait &&
+          s.status === "ready" &&
+          !phaseIsFinished()
+        ) {
           const t = await getSessionTasks(s.session_id);
+          if (gen !== pollGen.current || phaseIsFinished()) return;
           setTasks(t);
           setSelectedId(s.active_task_id ?? selectedId ?? t[0]?.id ?? null);
           setPhase("exam");
@@ -136,7 +188,7 @@ export default function App() {
           pushToast(
             finishing
               ? "Question finished"
-              : session.status === "switching"
+              : session.status === "switching" || clusterWait
                 ? "Question cluster ready"
                 : "Exam environment ready",
             "ok"
@@ -145,15 +197,20 @@ export default function App() {
         if (s.status === "error") {
           setError(s.error || "Provisioning failed");
           setPhase("lobby");
+          setClusterWait(false);
           localStorage.removeItem(SESSION_KEY);
           pushToast(s.error || "Provisioning failed", "error");
         }
       } catch (e) {
+        if (gen !== pollGen.current) return;
         setError(String((e as Error).message || e));
       }
     }, heavy ? 2000 : 4000);
-    return () => window.clearInterval(id);
-  }, [session, pushToast, selectedId]);
+    return () => {
+      pollGen.current += 1;
+      window.clearInterval(id);
+    };
+  }, [session, clusterWait, pushToast, selectedId]);
 
   // Wake Lock while exam ready
   useEffect(() => {
@@ -208,14 +265,21 @@ export default function App() {
       return;
     }
     setSelectedId(taskId);
+    beginClusterWait();
     try {
-      // Returns immediately; poll effect watches status=switching → ready
+      // Returns immediately; poll effect watches status=switching → ready.
+      // The clock pauses as soon as this screen is requested, not after the
+      // response, so a stale poll cannot keep it running on the switch window.
       const s = await activateSessionTask(session.session_id, taskId);
+      noteClusterSession(s);
+      if (s.status !== "switching") setClusterWait(false);
       setSession(s);
       setSelectedId(taskId);
       pushToast("Switching question cluster…", "ok");
     } catch (e) {
       const msg = String((e as Error).message || e);
+      setClusterWait(false);
+      sawSwitchingRef.current = false;
       setError(msg);
       pushToast(msg, "error");
       try {
@@ -231,8 +295,11 @@ export default function App() {
   const onFinishTask = async (taskId: string) => {
     if (!session || session.status !== "ready") return;
     setError(null);
+    beginClusterWait();
     try {
       const s = await finishSessionTask(session.session_id, taskId);
+      noteClusterSession(s);
+      if (s.status !== "switching") setClusterWait(false);
       setSession(s);
       pushToast(
         "Question finished — grade saved (hidden until End Exam)",
@@ -240,6 +307,8 @@ export default function App() {
       );
     } catch (e) {
       const msg = String((e as Error).message || e);
+      setClusterWait(false);
+      sawSwitchingRef.current = false;
       setError(msg);
       pushToast(msg, "error");
     }
@@ -291,6 +360,9 @@ export default function App() {
 
   const returnToStart = useCallback(() => {
     localStorage.removeItem(SESSION_KEY);
+    pollGen.current += 1;
+    sawSwitchingRef.current = false;
+    setClusterWait(false);
     setPhase("lobby");
     setSession(null);
     setTasks([]);
@@ -397,12 +469,21 @@ export default function App() {
         : prev
     );
     try {
-      const report = await endSession(session.session_id, setSession);
+      const report = await endSession(session.session_id, (next) => {
+        // Publish the score together with status=done. Otherwise the exam
+        // shell renders with no panel and the page looks blank.
+        if (next.status === "done" && next.score) {
+          setScore(next.score);
+          setPhase("finished");
+        }
+        setSession(next);
+      });
       setScore(report);
       setSession((prev) =>
         prev ? { ...prev, status: "done", score: report } : prev
       );
       setPhase("finished");
+      setClusterWait(false);
       localStorage.removeItem(SESSION_KEY);
       pushToast(`Score: ${report.score}%`, report.pass ? "ok" : "error");
     } catch (e) {
@@ -415,10 +496,24 @@ export default function App() {
     }
   }, [session, ending, pushToast, tasks.length]);
 
-  const ready = session?.status === "ready";
-  const switching = session?.status === "switching";
-  const showProgress =
-    session?.status === "provisioning" || session?.status === "switching";
+  const report =
+    score ?? (session?.status === "done" ? session.score ?? null : null);
+  const showResults =
+    Boolean(report) && (phase === "finished" || session?.status === "done");
+  const showExam = phase === "exam" && Boolean(session) && !showResults;
+  const showLobby = !showExam && !showResults;
+  const switching = session?.status === "switching" || clusterWait;
+  const ready = session?.status === "ready" && !switching;
+  const showProgress = session?.status === "provisioning" || switching;
+  const clockPaused =
+    switching ||
+    clockHeld ||
+    Boolean(
+      session?.timer_paused &&
+        session.status !== "ready" &&
+        session.status !== "grading" &&
+        session.status !== "done"
+    );
 
   const onDividerDown = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -463,22 +558,22 @@ export default function App() {
           </div>
         </div>
 
-        {phase === "exam" && session && (
+        {showExam && session && (
           <Timer
             endsAt={session.ends_at}
             remainingSeconds={session.remaining_seconds}
-            paused={session.status === "switching" || clockHeld}
+            paused={clockPaused}
             onExpire={finish}
           />
         )}
 
         <div className="top-actions">
-          {phase === "exam" && (
+          {showExam && (
             <button type="button" className="btn" onClick={toggleFullscreen}>
               Fullscreen
             </button>
           )}
-          {phase === "lobby" && (
+          {showLobby && (
             <button
               type="button"
               className="btn primary"
@@ -488,7 +583,7 @@ export default function App() {
               {busy ? "Starting…" : "Start Exam"}
             </button>
           )}
-          {phase === "exam" && ready && (
+          {showExam && ready && (
             <button
               type="button"
               className="btn danger"
@@ -517,7 +612,7 @@ export default function App() {
 
       {error && <div className="banner error">{error}</div>}
 
-      {phase === "lobby" && (
+      {showLobby && (
         <main className="lobby">
           <section className="lobby-hero">
             <h1>Certified Kubernetes Administrator</h1>
@@ -586,7 +681,7 @@ export default function App() {
         </main>
       )}
 
-      {phase === "exam" && session && (
+      {showExam && session && (
         <main
           className={ready ? "exam exam-shell" : "exam"}
           style={
@@ -675,6 +770,18 @@ export default function App() {
               )}
             </>
           )}
+          {showExam &&
+            session &&
+            !showProgress &&
+            !ready &&
+            session.status !== "grading" && (
+              <div className="provisioning">
+                <p>This exam view is no longer available.</p>
+                <button type="button" className="btn primary" onClick={returnToStart}>
+                  Back to start
+                </button>
+              </div>
+            )}
           {session.status === "grading" && (
             <div className="provisioning">
               <div className="spinner" />
@@ -714,7 +821,7 @@ export default function App() {
         </main>
       )}
 
-      {phase === "finished" && score && (
+      {showResults && report && (
         <>
           <main className="lobby">
             <section className="lobby-hero">
@@ -732,7 +839,7 @@ export default function App() {
               </button>
             </section>
           </main>
-          <ScoreReport score={score} onClose={returnToStart} />
+          <ScoreReport score={report} onClose={returnToStart} />
         </>
       )}
     </div>
