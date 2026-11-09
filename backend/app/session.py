@@ -51,6 +51,9 @@ class ExamSession:
     kubeconfig: Path
     created_at: datetime
     ends_at: datetime | None = None
+    # Set while the candidate is blocked on cluster startup. The deadline
+    # moves forward by this wait when the cluster becomes usable.
+    timer_paused_at: datetime | None = None
     error: str | None = None
     score: dict | None = None
     tasks: list[Task] = field(default_factory=list)
@@ -72,6 +75,24 @@ class ExamSession:
 
 _sessions: dict[str, ExamSession] = {}
 _lock = asyncio.Lock()
+
+
+def _pause_exam_timer(session: ExamSession) -> None:
+    """Freeze the deadline while the switching-question screen is up."""
+    if session.ends_at is None or session.timer_paused_at is not None:
+        return
+    session.timer_paused_at = datetime.now(timezone.utc)
+
+
+def _resume_exam_timer(session: ExamSession) -> None:
+    """Give back the time spent waiting for a cluster."""
+    paused_at = session.timer_paused_at
+    session.timer_paused_at = None
+    if paused_at is None or session.ends_at is None:
+        return
+    waited = datetime.now(timezone.utc) - paused_at
+    if waited.total_seconds() > 0:
+        session.ends_at += waited
 
 
 def _task_index(session: ExamSession, task_id: str) -> int:
@@ -711,9 +732,11 @@ async def _switch_task(session_id: str, task_id: str) -> None:
                 await _reconnect_task_cluster(session, task)
             else:
                 await _provision_task_cluster(session, task)
+            _resume_exam_timer(session)
             session.status = SessionStatus.READY
             _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
+            _resume_exam_timer(session)
             session.status = SessionStatus.ERROR
             session.error = str(exc)
             session.progress_label = "Question switch failed"
@@ -743,6 +766,7 @@ async def activate_task(session_id: str, task_id: str) -> ExamSession:
 
     session.status = SessionStatus.SWITCHING
     session.error = None
+    _pause_exam_timer(session)
     warming = (
         task_id in session.task_clusters
         or session.prefetch_task_id == task_id
@@ -825,10 +849,12 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
                     )
             else:
                 session.progress_label = "Question finished (grade saved)"
+            _resume_exam_timer(session)
             session.status = SessionStatus.READY
             if session.active_task_id:
                 _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
+            _resume_exam_timer(session)
             session.status = SessionStatus.ERROR
             session.error = str(exc)
             session.progress_label = "Finish question failed"
@@ -853,6 +879,7 @@ async def finish_task(session_id: str, task_id: str) -> ExamSession:
 
     session.status = SessionStatus.SWITCHING
     session.error = None
+    _pause_exam_timer(session)
     session.progress_step = 1
     session.progress_total = FINISH_STEPS
     session.progress_label = "Finishing question…"
@@ -961,9 +988,16 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
 
 def session_public(session: ExamSession) -> dict:
     now = datetime.now(timezone.utc)
+    # Only the "Switching question clusters…" screen. First-time setup and
+    # final grading keep the clock running.
+    timer_paused = session.status == SessionStatus.SWITCHING
     remaining = None
     if session.ends_at:
-        remaining = max(0, int((session.ends_at - now).total_seconds()))
+        if timer_paused and session.timer_paused_at:
+            basis = session.timer_paused_at
+        else:
+            basis = now
+        remaining = max(0, int((session.ends_at - basis).total_seconds()))
     total = max(1, session.progress_total)
     if session.status == SessionStatus.DONE:
         percent = 100
@@ -982,6 +1016,7 @@ def session_public(session: ExamSession) -> dict:
         "created_at": session.created_at.isoformat(),
         "ends_at": session.ends_at.isoformat() if session.ends_at else None,
         "remaining_seconds": remaining,
+        "timer_paused": timer_paused,
         "error": session.error,
         "score": session.score,
         "task_ids": [t.id for t in session.tasks],

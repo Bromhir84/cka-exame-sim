@@ -40,6 +40,8 @@ export type Session = {
   created_at: string;
   ends_at: string | null;
   remaining_seconds: number | null;
+  /** True on the Switching question clusters screen; the clock is frozen. */
+  timer_paused?: boolean;
   error: string | null;
   score: ScoreReport | null;
   task_ids?: string[];

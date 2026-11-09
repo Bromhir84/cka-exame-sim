@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 type Props = {
   endsAt: string | null;
   remainingSeconds: number | null;
+  paused?: boolean;
   onExpire: () => void;
 };
 
@@ -14,11 +15,16 @@ function format(secs: number): string {
   return [h, m, r].map((n) => String(n).padStart(2, "0")).join(":");
 }
 
-export default function Timer({ endsAt, remainingSeconds, onExpire }: Props) {
+export default function Timer({
+  endsAt,
+  remainingSeconds,
+  paused = false,
+  onExpire,
+}: Props) {
   const [left, setLeft] = useState(remainingSeconds ?? 0);
 
   useEffect(() => {
-    if (!endsAt) {
+    if (paused || !endsAt) {
       setLeft(remainingSeconds ?? 0);
       return;
     }
@@ -31,13 +37,17 @@ export default function Timer({ endsAt, remainingSeconds, onExpire }: Props) {
     tick();
     const id = window.setInterval(tick, 1000);
     return () => window.clearInterval(id);
-  }, [endsAt, remainingSeconds, onExpire]);
+  }, [endsAt, remainingSeconds, paused, onExpire]);
 
-  const urgent = left > 0 && left <= 300;
+  const urgent = !paused && left > 0 && left <= 300;
 
   return (
-    <div className={`timer ${urgent ? "urgent" : ""}`} aria-live="polite">
-      {format(left)}
+    <div
+      className={`timer ${urgent ? "urgent" : ""} ${paused ? "paused" : ""}`}
+      aria-live="polite"
+    >
+      <span>{format(left)}</span>
+      {paused && <span className="timer-note">paused</span>}
     </div>
   );
 }

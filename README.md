@@ -72,7 +72,7 @@ The installers run that preload for you. It pulls the kind node image plus Calic
 - UI: http://localhost:5173
 - API: http://localhost:8000
 
-Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, Gateway API). The first cluster still takes a few minutes to boot. Then work in the **Terminal** and **Docs** tabs. Click **End Exam** (or wait for the timer) for your score.
+Click **Start Exam**, wait for the environment to become ready (kind cluster, Calico, Gateway API). The first cluster still takes a few minutes to boot. Then work in the **Terminal** and **Docs** tabs. The 120-minute clock pauses only on the **Switching question clusters** screen, and that wait is added back when the next cluster is ready. Click **End Exam** (or wait for the timer) for your score.
 
 The exam workspace includes:
 
