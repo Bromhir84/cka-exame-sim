@@ -11,6 +11,14 @@ from pathlib import Path
 import yaml
 
 from .config import PASS_THRESHOLD
+from .mistake import (
+    augment_failure,
+    blob_typo_sentence,
+    kinds_to_inspect,
+    object_for_field_hint,
+    parse_object_rows,
+    typo_sentence,
+)
 from .tasks_loader import DOMAIN_LABELS, Task
 
 
@@ -94,6 +102,53 @@ async def _run_check(
         tmp.unlink(missing_ok=True)
         runner.unlink(missing_ok=True)
         trace_path.unlink(missing_ok=True)
+
+
+async def _list_objects(
+    kind: str, env: dict[str, str], cwd: Path
+) -> list[tuple[str, str]] | None:
+    """Every object of this kind, or None when the cluster could not be listed."""
+    try:
+        code, out = await _exec_bash(
+            [
+                "kubectl",
+                "get",
+                kind,
+                "-A",
+                "-o",
+                'jsonpath={range .items[*]}{.metadata.namespace}{"\\t"}{.metadata.name}{"\\n"}{end}',
+            ],
+            env,
+            cwd,
+            timeout=12,
+        )
+    except (FileNotFoundError, OSError):
+        return None
+    if code != 0:
+        return None
+    return parse_object_rows(out)
+
+
+async def _read_object(
+    kind: str, name: str, namespace: str, env: dict[str, str], cwd: Path
+) -> dict | None:
+    command = ["kubectl", "get", kind, name, "-o", "json"]
+    if namespace:
+        command = ["kubectl", "-n", namespace, "get", kind, name, "-o", "json"]
+    try:
+        code, out = await _exec_bash(command, env, cwd, timeout=12)
+    except (FileNotFoundError, OSError):
+        return None
+    if code != 0:
+        return None
+    start = out.find("{")
+    if start < 0:
+        return None
+    try:
+        data = json.loads(out[start:])
+    except json.JSONDecodeError:
+        return None
+    return data if isinstance(data, dict) else None
 
 
 _NOISE_COMMANDS = {
@@ -324,6 +379,9 @@ def explain_check_failure(output: str, trace: str) -> str:
                     f"Expected {_inline(right, assignments)}, "
                     f"but the cluster had {_inline(left, assignments)}."
                 )
+                sentence = typo_sentence(left, right)
+                if sentence:
+                    message += "\n\n" + sentence
             return message
         if len(body) == 2 and body[0] in {"-z", "-n"}:
             value = body[1]
@@ -356,6 +414,10 @@ def explain_check_failure(output: str, trace: str) -> str:
             if name:
                 heading += f" ({name})"
             message += f"\n{heading}:\n{_present_block(subject)}"
+        if not invert and subject:
+            sentence = blob_typo_sentence(pattern, subject)
+            if sentence:
+                message += "\n\n" + sentence
         return message
 
     if errors and args[0] in {"kubectl", "docker", "etcdctl", "crictl"}:
@@ -523,6 +585,8 @@ async def grade_task(
     check_results = []
     earned = 0
     outputs = []
+    kind_cache: dict[str, list[tuple[str, str]] | None] = {}
+    object_cache: dict[tuple[str, str, str], dict | None] = {}
     for meta, points in zip(checks_meta, scaled, strict=True):
         # Keep grade checks short — long kubectl waits blow past reverse proxies.
         code, out, trace = await _run_check(
@@ -534,7 +598,30 @@ async def grade_task(
         outputs.append(out)
         failure = ""
         if not passed:
-            failure = explain_check_failure(out, trace)[:2000]
+            failure = explain_check_failure(out, trace)
+            listed: dict[str, list[tuple[str, str]] | None] = {}
+            for kind in kinds_to_inspect(out, trace):
+                if kind not in kind_cache:
+                    kind_cache[kind] = await _list_objects(kind, env, task.dir)
+                listed[kind] = kind_cache[kind]
+            call = object_for_field_hint(out, trace)
+            document = None
+            jsonpath = None
+            if call and call.kind and call.name and call.jsonpath:
+                jsonpath = call.jsonpath
+                key = (call.kind, call.namespace or "", call.name)
+                if key not in object_cache:
+                    object_cache[key] = await _read_object(
+                        call.kind,
+                        call.name,
+                        call.namespace or "",
+                        env,
+                        task.dir,
+                    )
+                document = object_cache[key]
+            failure = augment_failure(
+                failure, out, trace, listed, document, jsonpath
+            )[:4000]
         check_results.append(
             {
                 "id": meta["id"],
