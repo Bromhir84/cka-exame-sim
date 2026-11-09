@@ -14,6 +14,7 @@ from .session import (
     finish_task,
     get_session,
     session_public,
+    set_screen_lock_hold,
     start_end_session,
 )
 from .docs_proxy import router as docs_router
@@ -96,6 +97,11 @@ class ActivateTaskBody(BaseModel):
     task_id: str
 
 
+class ScreenLockBody(BaseModel):
+    hold: bool
+    extend_seconds: float = 0
+
+
 @app.post("/api/sessions/{session_id}/activate")
 async def activate_session_task(session_id: str, body: ActivateTaskBody):
     """Switch to another question (park current cluster, open target)."""
@@ -127,6 +133,16 @@ async def finish_session_task(session_id: str, body: ActivateTaskBody):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return session_public(session)
+
+
+@app.post("/api/sessions/{session_id}/screen-lock")
+async def screen_lock_session(session_id: str, body: ScreenLockBody):
+    """Pause the exam clock while the computer is locked, then restore it."""
+    session = get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="session not found")
+    set_screen_lock_hold(session, body.hold, body.extend_seconds)
     return session_public(session)
 
 

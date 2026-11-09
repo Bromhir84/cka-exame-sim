@@ -151,6 +151,21 @@ export async function finishSessionTask(
   );
 }
 
+export async function setScreenLockHold(
+  id: string,
+  hold: boolean,
+  extendSeconds = 0
+): Promise<Session> {
+  return json<Session>(
+    await fetch(`/api/sessions/${id}/screen-lock`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hold, extend_seconds: extendSeconds }),
+      keepalive: true,
+    })
+  );
+}
+
 export async function startEndSession(id: string): Promise<Session> {
   return json<Session>(
     await fetch(`/api/sessions/${id}/end`, { method: "POST" })

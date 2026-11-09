@@ -51,9 +51,10 @@ class ExamSession:
     kubeconfig: Path
     created_at: datetime
     ends_at: datetime | None = None
-    # Set while the candidate is blocked on cluster startup. The deadline
-    # moves forward by this wait when the cluster becomes usable.
+    # Set while the clock is held (question switch and/or locked screen).
+    # The deadline moves forward by this wait when every hold is released.
     timer_paused_at: datetime | None = None
+    timer_pause_reasons: set[str] = field(default_factory=set)
     error: str | None = None
     score: dict | None = None
     tasks: list[Task] = field(default_factory=list)
@@ -77,15 +78,24 @@ _sessions: dict[str, ExamSession] = {}
 _lock = asyncio.Lock()
 
 
-def _pause_exam_timer(session: ExamSession) -> None:
-    """Freeze the deadline while the switching-question screen is up."""
-    if session.ends_at is None or session.timer_paused_at is not None:
+# A locked screen can last a while; ignore absurd client-reported gaps.
+_MAX_SCREEN_LOCK_CREDIT = 12 * 60 * 60
+
+
+def hold_exam_timer(session: ExamSession, reason: str) -> None:
+    """Freeze the deadline. Several reasons can hold it at once."""
+    if reason in session.timer_pause_reasons:
         return
-    session.timer_paused_at = datetime.now(timezone.utc)
+    if not session.timer_pause_reasons and session.ends_at is not None:
+        session.timer_paused_at = datetime.now(timezone.utc)
+    session.timer_pause_reasons.add(reason)
 
 
-def _resume_exam_timer(session: ExamSession) -> None:
-    """Give back the time spent waiting for a cluster."""
+def release_exam_timer(session: ExamSession, reason: str) -> None:
+    """Give back the held time once every reason has cleared."""
+    session.timer_pause_reasons.discard(reason)
+    if session.timer_pause_reasons:
+        return
     paused_at = session.timer_paused_at
     session.timer_paused_at = None
     if paused_at is None or session.ends_at is None:
@@ -93,6 +103,45 @@ def _resume_exam_timer(session: ExamSession) -> None:
     waited = datetime.now(timezone.utc) - paused_at
     if waited.total_seconds() > 0:
         session.ends_at += waited
+
+
+def _pause_exam_timer(session: ExamSession) -> None:
+    """Freeze the deadline while the switching-question screen is up."""
+    hold_exam_timer(session, "switching")
+
+
+def _resume_exam_timer(session: ExamSession) -> None:
+    """Give back the time spent waiting for a cluster."""
+    release_exam_timer(session, "switching")
+
+
+def set_screen_lock_hold(
+    session: ExamSession, hold: bool, extend_seconds: float = 0
+) -> None:
+    """Pause the clock while the computer is locked, then give that time back.
+
+    ``extend_seconds`` covers a lock whose pause request never reached the
+    server (the machine was already asleep). It is not applied when the hold
+    was recorded, so the same wait is not added twice.
+    """
+    if session.status in (
+        SessionStatus.DONE,
+        SessionStatus.GRADING,
+        SessionStatus.ERROR,
+    ):
+        return
+    if session.ends_at is None:
+        return
+    if hold:
+        hold_exam_timer(session, "hidden")
+        return
+    was_held = "hidden" in session.timer_pause_reasons
+    release_exam_timer(session, "hidden")
+    if was_held:
+        return
+    credit = max(0.0, min(float(extend_seconds), _MAX_SCREEN_LOCK_CREDIT))
+    if credit > 0 and session.ends_at is not None:
+        session.ends_at += timedelta(seconds=credit)
 
 
 def _task_index(session: ExamSession, task_id: str) -> int:
@@ -988,9 +1037,11 @@ async def destroy_session(session_id: str, delete_record: bool = True) -> None:
 
 def session_public(session: ExamSession) -> dict:
     now = datetime.now(timezone.utc)
-    # Only the "Switching question clusters…" screen. First-time setup and
-    # final grading keep the clock running.
-    timer_paused = session.status == SessionStatus.SWITCHING
+    # Switching screen, or the page is hidden because the computer is locked.
+    timer_paused = (
+        session.timer_paused_at is not None
+        or session.status == SessionStatus.SWITCHING
+    )
     remaining = None
     if session.ends_at:
         if timer_paused and session.timer_paused_at:
