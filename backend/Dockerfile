@@ -1,4 +1,4 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.15-slim-bookworm
 
 ARG KUBECTL_VERSION=v1.31.4
 ARG KIND_VERSION=v0.26.0
