@@ -384,6 +384,7 @@ export default function App() {
           <Timer
             endsAt={session.ends_at}
             remainingSeconds={session.remaining_seconds}
+            paused={session.status === "switching"}
             onExpire={finish}
           />
         )}
