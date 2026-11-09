@@ -25,7 +25,12 @@ export default function Timer({
 
   useEffect(() => {
     if (paused || !endsAt) {
-      setLeft(remainingSeconds ?? 0);
+      setLeft((current) => {
+        if (remainingSeconds == null) return paused ? current : 0;
+        if (!paused || current <= 0) return remainingSeconds;
+        // A poll must not walk the badge down while the switch screen is up.
+        return Math.max(current, remainingSeconds);
+      });
       return;
     }
     const tick = () => {

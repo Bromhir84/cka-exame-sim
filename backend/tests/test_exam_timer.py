@@ -42,6 +42,33 @@ class ExamTimerTests(unittest.TestCase):
         self.assertFalse(public["timer_paused"])
         self.assertIsNone(public["remaining_seconds"])
 
+    def test_resume_while_the_switch_screen_is_up_does_not_start_the_clock(self) -> None:
+        session = _session(status=SessionStatus.SWITCHING)
+        deadline = session.ends_at
+        assert deadline is not None
+        _pause_exam_timer(session)
+        session.timer_paused_at = datetime.now(timezone.utc) - timedelta(seconds=12)
+        _resume_exam_timer(session)
+        self.assertEqual(session.ends_at, deadline)
+        self.assertIsNotNone(session.timer_paused_at)
+        session.status = SessionStatus.READY
+        _resume_exam_timer(session)
+        assert session.ends_at is not None
+        self.assertGreaterEqual((session.ends_at - deadline).total_seconds(), 11)
+        self.assertFalse(session_public(session)["timer_paused"])
+
+    def test_missing_stamp_on_the_switch_screen_is_frozen(self) -> None:
+        session = _session(status=SessionStatus.SWITCHING)
+        session.timer_pause_reasons.add("switching")
+        self.assertIsNone(session.timer_paused_at)
+        first = session_public(session)["remaining_seconds"]
+        self.assertIsNotNone(session.timer_paused_at)
+        assert session.timer_paused_at is not None
+        session.timer_paused_at -= timedelta(seconds=8)
+        second = session_public(session)["remaining_seconds"]
+        self.assertEqual(second, first + 8)
+        self.assertTrue(session_public(session)["timer_paused"])
+
     def test_switching_screen_freezes_the_remaining_time(self) -> None:
         session = _session(status=SessionStatus.SWITCHING)
         paused_at = datetime.now(timezone.utc) - timedelta(seconds=40)

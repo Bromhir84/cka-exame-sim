@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Component, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import type { CheckResult, ScoreReport as Score } from "../api";
 
@@ -11,7 +11,8 @@ type Question = Score["results"][number];
 
 function checkDetail(check: CheckResult): string {
   if (check.passed) return "";
-  return (check.failure || check.output || "").trim();
+  const raw = check.failure || check.output || "";
+  return String(raw).trim();
 }
 
 function FailureDetail({ text }: { text: string }) {
@@ -42,10 +43,12 @@ function wasGraded(result: Question): boolean {
   return (result.checks ?? []).some((check) => check.id !== "skipped");
 }
 
-export default function ScoreReport({ score, onClose }: Props) {
+function ScoreReportBody({ score, onClose }: Props) {
+  const results = score.results ?? [];
+  const domains = score.domains ?? [];
   const [openAnswers, setOpenAnswers] = useState<Record<string, boolean>>(() => {
     const next: Record<string, boolean> = {};
-    for (const result of score.results) {
+    for (const result of results) {
       const missed = result.earned !== result.weight && wasGraded(result);
       if (missed && (result.answers || mistakes(result).length)) {
         next[result.id] = true;
@@ -53,7 +56,7 @@ export default function ScoreReport({ score, onClose }: Props) {
     }
     return next;
   });
-  const reviewIds = score.results
+  const reviewIds = results
     .filter((result) => result.answers || mistakes(result).length > 0)
     .map((result) => result.id);
   const allOpen =
@@ -81,7 +84,7 @@ export default function ScoreReport({ score, onClose }: Props) {
 
         <h3>By domain</h3>
         <ul className="domain-scores">
-          {score.domains.map((d) => (
+          {domains.map((d) => (
             <li key={d.domain}>
               <div className="domain-row">
                 <span>{d.label}</span>
@@ -110,7 +113,7 @@ export default function ScoreReport({ score, onClose }: Props) {
           )}
         </div>
         <ul className="task-scores detailed">
-          {score.results.map((r) => (
+          {results.map((r) => (
             <li key={r.id} className={r.passed ? "ok" : "no"}>
               <div className="task-score-head">
                 <span>
@@ -172,7 +175,7 @@ export default function ScoreReport({ score, onClose }: Props) {
                           </ul>
                         </section>
                       )}
-                      {r.answers && (
+                      {typeof r.answers === "string" && r.answers && (
                         <section className="answer-md">
                           <h4>Solution</h4>
                           <ReactMarkdown>{r.answers}</ReactMarkdown>
@@ -191,5 +194,41 @@ export default function ScoreReport({ score, onClose }: Props) {
         </button>
       </div>
     </div>
+  );
+}
+
+class ScoreBoundary extends Component<
+  { onClose: () => void; children: ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="modal-backdrop">
+          <div className="modal score-modal" role="dialog">
+            <h2>Exam results</h2>
+            <p>The score report could not be shown. Your exam is finished.</p>
+            <button type="button" className="btn primary" onClick={this.props.onClose}>
+              Back to start
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function ScoreReport(props: Props) {
+  return (
+    <ScoreBoundary onClose={props.onClose}>
+      <ScoreReportBody {...props} />
+    </ScoreBoundary>
   );
 }
