@@ -284,6 +284,17 @@ export default function App() {
       ? `Start ${selectedDomainMeta?.label ?? domainFilter} practice`
       : "Start 2-hour exam";
 
+  const returnToStart = useCallback(() => {
+    localStorage.removeItem(SESSION_KEY);
+    setPhase("lobby");
+    setSession(null);
+    setTasks([]);
+    setSelectedId(null);
+    setScore(null);
+    setEnding(false);
+    setError(null);
+  }, []);
+
   const finish = useCallback(async () => {
     if (!session || ending) return;
     setEnding(true);
@@ -369,7 +380,7 @@ export default function App() {
           </div>
         </div>
 
-        {phase !== "lobby" && session && (
+        {phase === "exam" && session && (
           <Timer
             endsAt={session.ends_at}
             remainingSeconds={session.remaining_seconds}
@@ -631,18 +642,13 @@ export default function App() {
               <button
                 type="button"
                 className="btn primary lg"
-                onClick={() => {
-                  setPhase("lobby");
-                  setSession(null);
-                  setTasks([]);
-                  setScore(null);
-                }}
+                onClick={returnToStart}
               >
-                Back to lobby
+                Back to start
               </button>
             </section>
           </main>
-          <ScoreReport score={score} onClose={() => setScore(null)} />
+          <ScoreReport score={score} onClose={returnToStart} />
         </>
       )}
     </div>
