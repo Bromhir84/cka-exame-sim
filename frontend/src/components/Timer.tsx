@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Props = {
   endsAt: string | null;
@@ -22,6 +22,8 @@ export default function Timer({
   onExpire,
 }: Props) {
   const [left, setLeft] = useState(remainingSeconds ?? 0);
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
   useEffect(() => {
     if (paused || !endsAt) {
@@ -34,10 +36,11 @@ export default function Timer({
       return;
     }
     const tick = () => {
+      if (pausedRef.current) return;
       const ms = new Date(endsAt).getTime() - Date.now();
       const secs = Math.max(0, Math.ceil(ms / 1000));
       setLeft(secs);
-      if (secs <= 0) onExpire();
+      if (secs <= 0 && !pausedRef.current) onExpire();
     };
     tick();
     const id = window.setInterval(tick, 1000);

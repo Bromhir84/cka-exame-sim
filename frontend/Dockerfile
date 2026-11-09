@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
+# Set by the installer from `git rev-parse HEAD` so the image matches that commit.
+ARG GIT_SHA=dev
+ENV VITE_GIT_SHA=$GIT_SHA
 RUN npm run build
 
 FROM nginx:1.27-alpine
