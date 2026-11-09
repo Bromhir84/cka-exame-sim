@@ -55,6 +55,30 @@ class GatewayTlsFixtureTests(unittest.TestCase):
             self.assertEqual((home / "tls.crt").read_bytes(), (TASK / "tls.crt").read_bytes())
             self.assertEqual((home / "tls.key").read_bytes(), (TASK / "tls.key").read_bytes())
 
+    def test_setup_copies_into_the_cluster_home_not_beside_kubeconfig(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            kube_dir = root / "kube"
+            candidate = root / "candidate"
+            bin_dir = root / "bin"
+            kube_dir.mkdir()
+            bin_dir.mkdir()
+            kubectl = bin_dir / "kubectl"
+            kubectl.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            kubectl.chmod(0o755)
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+            env["KUBECONFIG"] = str(kube_dir / "config")
+            env["CANDIDATE_HOME"] = str(candidate)
+            env["HOME"] = str(root / "ambient-home")
+            env["TASK_DIR"] = str(TASK)
+            code, out = asyncio.run(_run_script(TASK / "setup.sh", env, TASK, timeout=30))
+            self.assertEqual(code, 0, out)
+            self.assertEqual((candidate / "tls.crt").read_bytes(), (TASK / "tls.crt").read_bytes())
+            self.assertEqual((candidate / "tls.key").read_bytes(), (TASK / "tls.key").read_bytes())
+            self.assertFalse((kube_dir / "tls.crt").exists())
+            self.assertFalse((root / "ambient-home" / "tls.crt").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

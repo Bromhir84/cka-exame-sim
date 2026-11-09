@@ -439,13 +439,18 @@ def explain_check_failure(output: str, trace: str) -> str:
     return message
 
 
-async def run_setup(task: Task, kubeconfig: Path, cluster_name: str) -> None:
+async def run_setup(
+    task: Task, kubeconfig: Path, cluster_name: str, home: Path | None = None
+) -> None:
     env = {
         **os.environ,
         "KUBECONFIG": str(kubeconfig),
         "CLUSTER_NAME": cluster_name,
         "TASK_DIR": str(task.dir),
     }
+    if home is not None:
+        env["HOME"] = str(home)
+        env["CANDIDATE_HOME"] = str(home)
     # Setups often wait up to 120s on rollout; keep headroom for image pulls.
     code, out = await _run_script(
         task.dir / "setup.sh", env, task.dir, timeout=300
@@ -570,7 +575,10 @@ def assemble_score(tasks: list[Task], results_by_id: dict[str, dict]) -> dict:
 
 
 async def grade_task(
-    task: Task, kubeconfig: Path, cluster_name: str
+    task: Task,
+    kubeconfig: Path,
+    cluster_name: str,
+    home: Path | None = None,
 ) -> dict:
     env = {
         **os.environ,
@@ -578,6 +586,9 @@ async def grade_task(
         "CLUSTER_NAME": cluster_name,
         "TASK_DIR": str(task.dir),
     }
+    if home is not None:
+        env["HOME"] = str(home)
+        env["CANDIDATE_HOME"] = str(home)
     checks_meta = _load_checks(task)
     scaled = _scale_weights(
         [c["weight"] for c in checks_meta], task.weight

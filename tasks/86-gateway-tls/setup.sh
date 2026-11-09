@@ -6,7 +6,9 @@ kubectl -n net-tls86 expose deploy web --port=80
 kubectl -n net-tls86 rollout status deploy/web --timeout=120s
 # Certificate and key the candidate uses for Secret web-tls.
 # The runner copies this script to /tmp, so $0 is not the task directory.
-home="$(dirname "$KUBECONFIG")"
+# Each question cluster has its own home; kubeconfig lives under that home.
+home="${CANDIDATE_HOME:-$(dirname "$KUBECONFIG")}"
+mkdir -p "$home"
 cp "$TASK_DIR/tls.crt" "$home/tls.crt"
 cp "$TASK_DIR/tls.key" "$home/tls.key"
 chmod 644 "$home/tls.crt" "$home/tls.key"
