@@ -63,6 +63,8 @@ export default function App() {
   phaseRef.current = phase;
   const phaseIsFinished = () => phaseRef.current === "finished";
   const pollGen = useRef(0);
+  const sessionIdRef = useRef(session?.session_id);
+  sessionIdRef.current = session?.session_id;
   const sawSwitchingRef = useRef(false);
 
   const noteClusterSession = (next: Session) => {
@@ -178,9 +180,12 @@ export default function App() {
           !phaseIsFinished()
         ) {
           const t = await getSessionTasks(s.session_id);
-          if (gen !== pollGen.current || phaseIsFinished()) return;
+          // Saving the ready session restarts this effect and retires pollGen
+          // before the task request returns. This poll is the one that saw
+          // the cluster become ready, so keep the question list.
+          if (phaseIsFinished() || sessionIdRef.current !== s.session_id) return;
           setTasks(t);
-          setSelectedId(s.active_task_id ?? selectedId ?? t[0]?.id ?? null);
+          setSelectedId(s.active_task_id ?? t[0]?.id ?? null);
           setPhase("exam");
           const finishing = (session.progress?.label || "")
             .toLowerCase()
@@ -210,7 +215,37 @@ export default function App() {
       pollGen.current += 1;
       window.clearInterval(id);
     };
-  }, [session, clusterWait, pushToast, selectedId]);
+  }, [session, clusterWait, pushToast]);
+
+  // If the ready-transition poll is restarted before its task request
+  // finishes, this still fills the question list for the open session.
+  useEffect(() => {
+    if (!session || tasks.length > 0) return;
+    if (
+      session.status === "done" ||
+      session.status === "error" ||
+      session.status === "grading"
+    ) {
+      return;
+    }
+    if (phaseIsFinished()) return;
+    const sessionId = session.session_id;
+    const activeId = session.active_task_id;
+    let cancelled = false;
+    (async () => {
+      try {
+        const t = await getSessionTasks(sessionId);
+        if (cancelled || phaseIsFinished() || sessionIdRef.current !== sessionId) return;
+        setTasks((prev) => (prev.length > 0 ? prev : t));
+        setSelectedId((prev) => prev ?? activeId ?? t[0]?.id ?? null);
+      } catch {
+        /* a later status change retries while the list is still empty */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.session_id, session?.status, tasks.length]);
 
   // Wake Lock while exam ready
   useEffect(() => {
@@ -248,7 +283,10 @@ export default function App() {
       JSON.stringify({ session_id: s.session_id, ends_at: s.ends_at })
     );
     setPhase("exam");
-    if (s.status === "ready" || s.status === "switching") {
+    // Questions are chosen when the session is created, including while the
+    // first cluster is still provisioning. Load them now so the list is
+    // already there when the terminal appears.
+    if (s.status !== "done" && s.status !== "error" && s.status !== "grading") {
       const t = await getSessionTasks(s.session_id);
       setTasks(t);
       setSelectedId(s.active_task_id ?? t[0]?.id ?? null);
