@@ -32,6 +32,9 @@ export default function TaskPanel({
   const opened = new Set(openedTaskIds);
   const finished = new Set(finishedTaskIds);
   const selectedFinished = selected ? finished.has(selected.id) : false;
+  const laterUnfinished = selected
+    ? tasks.slice(index + 1).some((t) => !finished.has(t.id))
+    : false;
   const canFinish =
     !!selected &&
     !switching &&
@@ -116,8 +119,10 @@ export default function TaskPanel({
               </button>
               <p className="task-nav-note task-finish-note">
                 {selectedFinished
-                  ? "Grade saved. Score stays hidden until you press End Exam."
-                  : "Finish grades this question quietly, removes its cluster to free RAM, and keeps the result until End Exam."}
+                  ? "Grade saved. The score stays hidden until the exam is graded."
+                  : laterUnfinished
+                    ? "Finish grades this question quietly, removes its cluster to free RAM, and keeps the result until the exam is graded."
+                    : "This is the last question. Finish grades it, then grades the exam and shows your score."}
               </p>
             </div>
             {prefetchLabel ? (
