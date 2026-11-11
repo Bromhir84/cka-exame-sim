@@ -609,18 +609,18 @@ async def _reconnect_task_cluster(session: ExamSession, task: Task) -> None:
 
 
 def _next_prefetch_task_id(session: ExamSession) -> str | None:
-    """Next unfinished question after the active one that still needs a cluster."""
+    """Next unfinished question after the active one that still needs a cluster.
+
+    Does not wrap to the start of the exam. The last question should not warm
+    question 1 while the candidate is finishing.
+    """
     if not session.active_task_id:
         return None
-    n = len(session.tasks)
     try:
         start = _task_index(session, session.active_task_id) + 1
     except KeyError:
-        start = 0
-    for offset in range(n):
-        task = session.tasks[(start + offset) % n]
-        if task.id == session.active_task_id:
-            continue
+        return None
+    for task in session.tasks[start:]:
         if task.id in session.task_results:
             continue
         if task.id in session.task_clusters:
@@ -878,18 +878,28 @@ FINISH_STEPS = 3
 
 
 def _next_unfinished_task_id(session: ExamSession, after_id: str) -> str | None:
-    """Prefer the next unfinished question after after_id, else any unfinished."""
-    n = len(session.tasks)
-    start = 0
+    """Next unfinished question after after_id. Does not wrap to earlier ones."""
     try:
         start = _task_index(session, after_id) + 1
     except KeyError:
-        start = 0
-    for offset in range(n):
-        task = session.tasks[(start + offset) % n]
+        return None
+    for task in session.tasks[start:]:
         if task.id not in session.task_results:
             return task.id
     return None
+
+
+def _start_exam_grading(session: ExamSession) -> None:
+    """Grade every remaining open cluster and publish the score."""
+    session.active_task_id = None
+    session.cluster_name = ""
+    session.status = SessionStatus.GRADING
+    session.error = None
+    session.progress_step = 0
+    session.progress_total = max(1, len(session.task_clusters) or len(session.tasks))
+    session.progress_label = "Starting grading…"
+    _resume_exam_timer(session)
+    asyncio.create_task(_grade_session(session.id, True))
 
 
 async def _finish_task_job(session_id: str, task_id: str) -> None:
@@ -932,19 +942,20 @@ async def _finish_task_job(session_id: str, task_id: str) -> None:
                         await _reconnect_task_cluster(session, task)
                     else:
                         await _provision_task_cluster(session, task)
+                    session.status = SessionStatus.READY
+                    _resume_exam_timer(session)
+                    _kick_prefetch(session)
                 else:
+                    # Last question in the set. Grade the exam instead of
+                    # wrapping back to an earlier question.
                     await _cancel_prefetch(session)
-                    session.active_task_id = None
-                    session.cluster_name = ""
-                    session.progress_label = (
-                        "Question finished — use End Exam for your score"
-                    )
+                    _start_exam_grading(session)
             else:
                 session.progress_label = "Question finished (grade saved)"
-            session.status = SessionStatus.READY
-            _resume_exam_timer(session)
-            if session.active_task_id:
-                _kick_prefetch(session)
+                session.status = SessionStatus.READY
+                _resume_exam_timer(session)
+                if session.active_task_id:
+                    _kick_prefetch(session)
         except Exception as exc:  # noqa: BLE001
             session.status = SessionStatus.ERROR
             _resume_exam_timer(session)

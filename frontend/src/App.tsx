@@ -72,6 +72,7 @@ export default function App() {
     if (
       next.status === "done" ||
       next.status === "error" ||
+      next.status === "grading" ||
       (next.status === "ready" && sawSwitchingRef.current)
     ) {
       sawSwitchingRef.current = false;
@@ -144,6 +145,7 @@ export default function App() {
     const heavy =
       session.status === "provisioning" ||
       session.status === "switching" ||
+      session.status === "grading" ||
       clusterWait;
     // Also poll lightly while ready so next-cluster prefetch labels refresh.
     if (!heavy && !(session.status === "ready" && prefetchWatch)) {
@@ -172,6 +174,8 @@ export default function App() {
         if (s.status === "done" && s.score) {
           setScore(s.score);
           setPhase("finished");
+          setClusterWait(false);
+          localStorage.removeItem(SESSION_KEY);
         }
         setSession(s);
         if (
@@ -339,8 +343,14 @@ export default function App() {
       noteClusterSession(s);
       if (s.status !== "switching") setClusterWait(false);
       setSession(s);
+      const index = tasks.findIndex((t) => t.id === taskId);
+      const laterUnfinished = tasks
+        .slice(index + 1)
+        .some((t) => !(session.finished_task_ids ?? []).includes(t.id));
       pushToast(
-        "Question finished — grade saved (hidden until End Exam)",
+        laterUnfinished
+          ? "Question finished — grade saved (hidden until the exam ends)"
+          : "Last question finished — grading the exam…",
         "ok"
       );
     } catch (e) {
